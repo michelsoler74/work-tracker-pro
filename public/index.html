@@ -733,34 +733,39 @@
         }
       }
 
-      // Función para agregar trabajador y horas al listado
-      function agregarTrabajadorHoras() {}
-      const nombreTrabajador = document
-        .getElementById("nombreTrabajador")
-        .value.trim();
-      const horasTrabajadas = document
-        .getElementById("horasTrabajadas")
-        .value.trim();
-
-      if (!nombreTrabajador || !horasTrabajadas) {
-        alert(
-          "Por favor, introduce tanto el nombre del trabajador como las horas trabajadas."
-        );
-        return;
-      }
-
-      const listaTrabajadoresHoras = document.getElementById(
-        "listaTrabajadoresHoras"
-      );
-      const nuevoElemento = document.createElement("li");
-      nuevoElemento.textContent = `${nombreTrabajador}: ${horasTrabajadas} horas`;
-      listaTrabajadoresHoras.appendChild(nuevoElemento);
-
       // Limpia los campos después de agregar
       document.getElementById("nombreTrabajador").value = "";
       document.getElementById("horasTrabajadas").value = "";
 
       // Llama a la función cuando la página se cargue
+      // Función para agregar trabajador y horas al listado
+      function agregarTrabajadorHoras() {
+        const nombreTrabajador = document
+          .getElementById("nombreTrabajador")
+          .value.trim();
+        const horasTrabajadas = document
+          .getElementById("horasTrabajadas")
+          .value.trim();
+
+        if (!nombreTrabajador || !horasTrabajadas) {
+          alert(
+            "Por favor, introduce tanto el nombre del trabajador como las horas trabajadas."
+          );
+          return;
+        }
+
+        const listaTrabajadoresHoras = document.getElementById(
+          "listaTrabajadoresHoras"
+        );
+        const nuevoElemento = document.createElement("li");
+        nuevoElemento.textContent = `${nombreTrabajador}: ${horasTrabajadas} horas`;
+        listaTrabajadoresHoras.appendChild(nuevoElemento);
+
+        // Limpia los campos después de agregar
+        document.getElementById("nombreTrabajador").value = "";
+        document.getElementById("horasTrabajadas").value = "";
+      }
+
       window.onload = cargarTrabajosRegistrados;
     </script>
   </body>
