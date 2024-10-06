@@ -715,16 +715,16 @@
           trabajosSnapshot.forEach((doc) => {
             const trabajo = doc.data();
             const trabajoHTML = `
-        <div class="trabajo-card">
-          <h3>${trabajo.nombre}</h3>
-          <p><strong>Descripción:</strong> ${trabajo.descripcion}</p>
-          <p><strong>Ubicación:</strong> ${trabajo.ubicacion}</p>
-          <p><strong>Fecha de Inicio:</strong> ${trabajo.fechaInicio}</p>
-          <p><strong>Fecha de Finalización:</strong> ${
-            trabajo.fechaFin || "No especificada"
-          }</p>
-        </div>
-      `;
+              <div class="trabajo-card">
+                <h3>${trabajo.nombre}</h3>
+                <p><strong>Descripción:</strong> ${trabajo.descripcion}</p>
+                <p><strong>Ubicación:</strong> ${trabajo.ubicacion}</p>
+                <p><strong>Fecha de Inicio:</strong> ${trabajo.fechaInicio}</p>
+                <p><strong>Fecha de Finalización:</strong> ${
+                  trabajo.fechaFin || "No especificada"
+                }</p>
+              </div>
+            `;
             listaTrabajosRegistrados.innerHTML += trabajoHTML;
           });
         } catch (error) {
@@ -732,6 +732,33 @@
           alert("Hubo un error al cargar los trabajos.");
         }
       }
+
+      // Función para agregar trabajador y horas al listado
+      function agregarTrabajadorHoras() {}
+      const nombreTrabajador = document
+        .getElementById("nombreTrabajador")
+        .value.trim();
+      const horasTrabajadas = document
+        .getElementById("horasTrabajadas")
+        .value.trim();
+
+      if (!nombreTrabajador || !horasTrabajadas) {
+        alert(
+          "Por favor, introduce tanto el nombre del trabajador como las horas trabajadas."
+        );
+        return;
+      }
+
+      const listaTrabajadoresHoras = document.getElementById(
+        "listaTrabajadoresHoras"
+      );
+      const nuevoElemento = document.createElement("li");
+      nuevoElemento.textContent = `${nombreTrabajador}: ${horasTrabajadas} horas`;
+      listaTrabajadoresHoras.appendChild(nuevoElemento);
+
+      // Limpia los campos después de agregar
+      document.getElementById("nombreTrabajador").value = "";
+      document.getElementById("horasTrabajadas").value = "";
 
       // Llama a la función cuando la página se cargue
       window.onload = cargarTrabajosRegistrados;
