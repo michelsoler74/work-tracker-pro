@@ -703,6 +703,37 @@
             alert("Error al registrar el trabajo.");
           }
         });
+      async function cargarTrabajosRegistrados() {
+        try {
+          const trabajosSnapshot = await getDocs(collection(db, "trabajos"));
+          const listaTrabajosRegistrados = document.getElementById(
+            "listaTrabajosRegistrados"
+          );
+          listaTrabajosRegistrados.innerHTML = ""; // Limpiar la lista antes de añadir los elementos
+
+          trabajosSnapshot.forEach((doc) => {
+            const trabajo = doc.data();
+            const trabajoHTML = `
+        <div class="trabajo-card">
+          <h3>${trabajo.nombre}</h3>
+          <p><strong>Descripción:</strong> ${trabajo.descripcion}</p>
+          <p><strong>Ubicación:</strong> ${trabajo.ubicacion}</p>
+          <p><strong>Fecha de Inicio:</strong> ${trabajo.fechaInicio}</p>
+          <p><strong>Fecha de Finalización:</strong> ${
+            trabajo.fechaFin || "No especificada"
+          }</p>
+        </div>
+      `;
+            listaTrabajosRegistrados.innerHTML += trabajoHTML;
+          });
+        } catch (error) {
+          console.error("Error al cargar los trabajos: ", error);
+          alert("Hubo un error al cargar los trabajos.");
+        }
+      }
+
+      // Llama a la función cuando la página se cargue
+      window.onload = cargarTrabajosRegistrados;
     </script>
   </body>
 </html>
