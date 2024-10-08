@@ -645,6 +645,7 @@
     </script>
 
     <!-- Script de Firebase para registrar trabajos -->
+    <!-- Script de Firebase para registrar trabajos y trabajadores -->
     <script type="module">
       // Importa las funciones que necesitas de los SDKs que necesitas
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
@@ -704,68 +705,255 @@
             alert("Error al registrar el trabajo.");
           }
         });
-      async function cargarTrabajosRegistrados() {
-        try {
-          const trabajosSnapshot = await getDocs(collection(db, "trabajos"));
-          const listaTrabajosRegistrados = document.getElementById(
-            "listaTrabajosRegistrados"
-          );
-          listaTrabajosRegistrados.innerHTML = ""; // Limpiar la lista antes de añadir los elementos
 
-          trabajosSnapshot.forEach((doc) => {
-            const trabajo = doc.data();
-            const trabajoHTML = `
-              <div class="trabajo-card">
-                <h3>${trabajo.nombre}</h3>
-                <p><strong>Descripción:</strong> ${trabajo.descripcion}</p>
-                <p><strong>Ubicación:</strong> ${trabajo.ubicacion}</p>
-                <p><strong>Fecha de Inicio:</strong> ${trabajo.fechaInicio}</p>
-                <p><strong>Fecha de Finalización:</strong> ${
-                  trabajo.fechaFin || "No especificada"
-                }</p>
-              </div>
-            `;
-            listaTrabajosRegistrados.innerHTML += trabajoHTML;
+      // Función para registrar trabajadores en Firestore
+      document
+        .getElementById("trabajadorForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          // Obtener valores del formulario de trabajador
+          const nombre = document
+            .getElementById("nombreTrabajadorForm")
+            .value.trim();
+          const edad = document.getElementById("edadTrabajador").value.trim();
+          const direccion = document
+            .getElementById("direccionTrabajador")
+            .value.trim();
+          const telefono = document
+            .getElementById("telefonoTrabajador")
+            .value.trim();
+          const especialidad = document
+            .getElementById("especialidadTrabajador")
+            .value.trim();
+          const experiencia = document
+            .getElementById("experienciaTrabajador")
+            .value.trim();
+
+          try {
+            // Añadir los datos del trabajador a Firestore
+            await addDoc(collection(db, "trabajadores"), {
+              nombre,
+              edad,
+              direccion,
+              telefono,
+              especialidad,
+              experiencia,
+            });
+            alert("Trabajador registrado exitosamente.");
+            e.target.reset(); // Limpiar el formulario después de enviar
+            cargarTrabajadoresRegistrados(); // Recargar la lista de trabajadores
+          } catch (error) {
+            console.error("Error al registrar el trabajador: ", error);
+            alert("Error al registrar el trabajador.");
+          }
+        });
+      // Función para cargar trabajadores desde Firestore
+      async function cargarTrabajadoresRegistrados() {
+        try {
+          const trabajadoresSnapshot = await getDocs(
+            collection(db, "trabajadores")
+          );
+          const listaTrabajadoresRegistrados = document.getElementById(
+            "listaTrabajadoresRegistrados"
+          );
+          listaTrabajadoresRegistrados.innerHTML = ""; // Limpiar la lista antes de añadir elementos
+
+          trabajadoresSnapshot.forEach((doc) => {
+            const trabajador = doc.data();
+            const trabajadorHTML = `
+                      <div class="trabajador-card">
+                        <h4>${trabajador.nombre}</h4>
+                        <p>
+                          <strong>Edad:</strong> ${trabajador.edad}
+                        </p>
+                        <p>
+                          <strong>Dirección:</strong> ${trabajador.direccion}
+                        </p>
+                        <p>
+                          <strong>Teléfono:</strong> ${trabajador.telefono}
+                        </p>
+                        <p>
+                          <strong>Especialidad:</strong> ${trabajador.especialidad}
+                        </p>
+                        <p>
+                          <strong>Años de experiencia:</strong> ${trabajador.experiencia}
+                        </p>
+                      </div>
+                    `;
+            listaTrabajadoresRegistrados.innerHTML += trabajadorHTML;
           });
         } catch (error) {
-          console.error("Error al cargar los trabajos: ", error);
-          alert("Hubo un error al cargar los trabajos.");
+          console.error("Error al cargar los trabajadores: ", error);
+          alert("Hubo un error al cargar los trabajadores.");
         }
       }
 
-      // Limpia los campos después de agregar
-      document.getElementById("nombreTrabajador").value = "";
-      document.getElementById("horasTrabajadas").value = "";
+      // Llamar a la función para cargar trabajadores al iniciar la página
+      document.addEventListener(
+        "DOMContentLoaded",
+        cargarTrabajadoresRegistrados
+      );
+      async function cargarTrabajosRegistrados() {
+        console.log("La función cargarTrabajosRegistrados se está ejecutando"); // Línea para verificar
+        // El resto del código de la función...
+      }
+
+      // Función para cargar trabajos registrados cuando la página se carga
+      try {
+        const trabajosSnapshot = await getDocs(collection(db, "trabajos"));
+        const listaTrabajosRegistrados = document.getElementById(
+          "listaTrabajosRegistrados"
+        );
+
+        listaTrabajosRegistrados.innerHTML = ""; // Limpiar la lista antes de añadir los elementos
+
+        trabajosSnapshot.forEach((doc) => {
+          const trabajo = doc.data();
+          const trabajoHTML = `
+        <div class="trabajo-card">
+          <h3>${trabajo.nombre}</h3>
+          <p><strong>Descripción:</strong> ${trabajo.descripcion}</p>
+          <p><strong>Ubicación:</strong> ${trabajo.ubicacion}</p>
+          <p><strong>Fecha de Inicio:</strong> ${trabajo.fechaInicio}</p>
+          <p><strong>Fecha de Finalización:</strong> ${
+            trabajo.fechaFin || "No especificada"
+          }</p>
+          <button class="btn btn-warning" onclick="editarTrabajo('${
+            doc.id
+          }')">Editar</button>
+        </div>
+      `;
+          listaTrabajosRegistrados.innerHTML += trabajoHTML;
+        });
+      } catch (error) {
+        console.error("Error al cargar los trabajos: ", error);
+        alert("Hubo un error al cargar los trabajos.");
+      }
+
+      // Función para cargar el resumen de actividades
+      async function cargarResumenActividades() {
+        try {
+          const trabajosSnapshot = await getDocs(collection(db, "trabajos"));
+          const trabajadoresSnapshot = await getDocs(
+            collection(db, "trabajadores")
+          );
+          const resumenContenido = document.getElementById("resumenContenido");
+          resumenContenido.innerHTML = ""; // Limpiar el resumen antes de añadir datos
+
+          // Generar resumen de trabajos
+          let resumenHTML = "<h4>Resumen de Trabajos</h4>";
+          trabajosSnapshot.forEach((doc) => {
+            const trabajo = doc.data();
+            resumenHTML += `
+                      <div class="trabajo-card">
+                        <h5>${trabajo.nombre}</h5>
+                        <p>
+                          <strong>Descripción:</strong> ${trabajo.descripcion}
+                        </p>
+                        <p>
+                          <strong>Ubicación:</strong> ${trabajo.ubicacion}
+                        </p>
+                        <p>
+                          <strong>Fecha de Inicio:</strong> ${
+                            trabajo.fechaInicio
+                          }
+                        </p>
+                        <p>
+                          <strong>Fecha de Finalización:</strong> ${
+                            trabajo.fechaFin || "No especificada"
+                          }
+                        </p>
+                      </div>
+                    `;
+          });
+
+          // Generar resumen de trabajadores
+          resumenHTML += "<h4>Resumen de Trabajadores</h4>";
+          trabajadoresSnapshot.forEach((doc) => {
+            const trabajador = doc.data();
+            resumenHTML += `
+                      <div class="trabajador-card">
+                        <h5>${trabajador.nombre}</h5>
+                        <p>
+                          <strong>Edad:</strong> ${trabajador.edad}
+                        </p>
+                        <p>
+                          <strong>Dirección:</strong> ${trabajador.direccion}
+                        </p>
+                        <p>
+                          <strong>Teléfono:</strong> ${trabajador.telefono}
+                        </p>
+                        <p>
+                          <strong>Especialidad:</strong> ${trabajador.especialidad}
+                        </p>
+                        <p>
+                          <strong>Años de experiencia:</strong> ${trabajador.experiencia}
+                        </p>
+                      </div>
+                    `;
+          });
+
+          resumenContenido.innerHTML = resumenHTML;
+        } catch (error) {
+          console.error("Error al cargar el resumen de actividades: ", error);
+          alert("Hubo un error al cargar el resumen.");
+        }
+      }
+
+      // Función para descargar el resumen como archivo de texto
+      function descargarResumen() {
+        const resumenContenido =
+          document.getElementById("resumenContenido").innerHTML;
+        const blob = new Blob([resumenContenido], {
+          type: "text/plain;charset=utf-8",
+        });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "resumen_actividades.txt";
+        link.click();
+      }
+      // Función para imprimir el resumen
+
+      // <- Asegúrate de tener este cierre
+
+      // Función para compartir el resumen (copia al portapapeles)
+      function compartirResumen() {
+        const resumenContenido =
+          document.getElementById("resumenContenido").innerText;
+        navigator.clipboard.writeText(resumenContenido).then(
+          () => {
+            alert("Resumen copiado al portapapeles.");
+          },
+          (err) => {
+            console.error("Error al copiar el resumen: ", err);
+            alert("Hubo un error al copiar el resumen.");
+          }
+        );
+      }
+
+      // Conectar el botón de "Actualizar Resumen" para recargar los datos
+      document
+        .getElementById("btnMostrarResumen")
+        .addEventListener("click", cargarResumenActividades);
+      // Conectar los botones de resumen a sus funciones
+      document
+        .getElementById("btnMostrarResumen")
+        .addEventListener("click", cargarResumenActividades);
+      document
+        .querySelector(".btn-action[onclick='descargarResumen()']")
+        .addEventListener("click", descargarResumen);
+      document
+        .querySelector(".btn-action[onclick='imprimirResumen()']")
+        .addEventListener("click", imprimirResumen);
+      document
+        .querySelector(".btn-action[onclick='compartirResumen()']")
+        .addEventListener("click", compartirResumen);
+
+      // Llamar a la función para cargar trabajos al iniciar la página
+      document.addEventListener("DOMContentLoaded", cargarTrabajosRegistrados);
 
       // Llama a la función cuando la página se cargue
-      // Función para agregar trabajador y horas al listado
-      function agregarTrabajadorHoras() {
-        const nombreTrabajador = document
-          .getElementById("nombreTrabajador")
-          .value.trim();
-        const horasTrabajadas = document
-          .getElementById("horasTrabajadas")
-          .value.trim();
-
-        if (!nombreTrabajador || !horasTrabajadas) {
-          alert(
-            "Por favor, introduce tanto el nombre del trabajador como las horas trabajadas."
-          );
-          return;
-        }
-
-        const listaTrabajadoresHoras = document.getElementById(
-          "listaTrabajadoresHoras"
-        );
-        const nuevoElemento = document.createElement("li");
-        nuevoElemento.textContent = `${nombreTrabajador}: ${horasTrabajadas} horas`;
-        listaTrabajadoresHoras.appendChild(nuevoElemento);
-
-        // Limpia los campos después de agregar
-        document.getElementById("nombreTrabajador").value = "";
-        document.getElementById("horasTrabajadas").value = "";
-      }
-
       window.onload = cargarTrabajosRegistrados;
     </script>
   </body>
