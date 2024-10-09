@@ -955,6 +955,59 @@
 
       // Llama a la función cuando la página se cargue
       window.onload = cargarTrabajosRegistrados;
+      // Paso 1: Obtén el archivo que quieres subir (por ejemplo, desde un input en HTML)
+      const fileInput = document.getElementById("file-input");
+      const file = fileInput.files[0]; // Esto selecciona el primer archivo
+
+      // Paso 2: Crea una referencia a Firebase Storage
+      import { getStorage, ref } from "firebase/storage";
+
+      const storage = getStorage(); // Inicializa el almacenamiento
+      const fileRef = ref(storage, `trabajos/${file.name}`); // Nombre del archivo en el Storage
+
+      // Paso 3: Sube la imagen al storage
+      import { uploadBytes, getDownloadURL } from "firebase/storage";
+
+      uploadBytes(fileRef, file)
+        .then((snapshot) => {
+          console.log("Archivo subido correctamente!");
+          // Obtener la URL de descarga
+          return getDownloadURL(fileRef);
+        })
+        .then((url) => {
+          console.log("La URL de la imagen es:", url);
+          // Aquí puedes guardar la URL en Firestore o mostrarla en tu aplicación
+        })
+        .catch((error) => {
+          console.error(
+            "Error al subir el archivo o al obtener la URL:",
+            error
+          );
+        });
+
+      fileRef
+        .getDownloadURL()
+        .then((url) => {
+          console.log("La URL de la imagen es:", url);
+          // Aquí puedes guardar esta URL en tu base de datos
+        })
+        .catch((error) => {
+          console.error("Error al obtener la URL:", error);
+        });
+      firebase
+        .firestore()
+        .collection("trabajos")
+        .doc(trabajoId)
+        .update({
+          imagenUrl: url,
+        })
+        .then(() => {
+          console.log("URL guardada en Firestore");
+        })
+        .catch((error) => {
+          console.error("Error al guardar la URL en Firestore:", error);
+        });
+      <img src="URL_DE_LA_IMAGEN" alt="Imagen del trabajo" />;
     </script>
   </body>
 </html>
