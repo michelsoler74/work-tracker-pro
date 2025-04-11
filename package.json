@@ -1,54 +1,17 @@
 {
-  "name": "work-tracker-pro-2",
+  "name": "work-tracker-pro",
+  "private": true,
   "version": "1.0.0",
-  "description": "Professional work tracking application",
-  "main": "src/electron.js",
+  "type": "module",
   "scripts": {
-    "start": "electron .",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5174 && electron .\"",
-    "electron-build": "electron-builder -c.extraMetadata.main=dist/electron.js",
-    "dist": "npm run build && npm run electron-build",
-    "build:all": "node build.js",
-    "create-zip": "node create-zip.js"
+    "preview": "vite preview"
   },
-  "author": "Your Name",
-  "license": "ISC",
   "dependencies": {
-    "electron-is-dev": "^2.0.0",
-    "electron-store": "^8.1.0"
+    "dexie": "^3.2.4"
   },
   "devDependencies": {
-    "archiver": "^7.0.1",
-    "concurrently": "^8.2.2",
-    "electron": "^28.1.0",
-    "electron-builder": "^24.9.1",
-    "sharp": "^0.34.1",
-    "vite": "^5.0.8",
-    "wait-on": "^7.2.0"
-  },
-  "build": {
-    "appId": "com.worktrackerpro.app",
-    "files": [
-      "dist/**/*",
-      "src/electron.js"
-    ],
-    "directories": {
-      "output": "release"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "src/assets/icons/icon.png"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "src/assets/icons/icon.png"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "src/assets/icons/icon.png"
-    }
+    "vite": "^5.0.0"
   }
 }
