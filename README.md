@@ -185,3 +185,17 @@ Para soporte o consultas, contacta a:
 - [Bootstrap](https://getbootstrap.com)
 - [Font Awesome](https://fontawesome.com)
 - Todos los contribuidores
+
+## Despliegue en GitHub Pages
+
+La aplicación está desplegada en GitHub Pages y se puede acceder en la siguiente URL:
+
+[https://michelsoler74.github.io/work-tracker-pro/](https://michelsoler74.github.io/work-tracker-pro/)
+
+### Problemas de despliegue
+
+Si el despliegue no funciona, asegúrate de:
+
+1. Verificar en la pestaña "Settings" > "Pages" que el origen del despliegue está configurado como "GitHub Actions"
+2. Verificar que el flujo de trabajo (en Actions) se completó correctamente
+3. Comprobar que la rama "gh-pages" existe y contiene el código compilado
