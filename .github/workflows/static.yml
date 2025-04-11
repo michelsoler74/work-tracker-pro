@@ -93,10 +93,32 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload artifact
+      - name: Create test HTML
+        run: |
+          echo "Creating test HTML file"
+          mkdir -p test-dist
+          cat > test-dist/index.html << 'EOL'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Work Tracker Pro - Test Page</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+          </head>
+          <body>
+            <h1>Work Tracker Pro</h1>
+            <p>Esta es una página de prueba para GitHub Pages</p>
+            <p>Si puedes ver esta página, el despliegue básico funciona.</p>
+          </body>
+          </html>
+          EOL
+          echo "Test HTML created:"
+          cat test-dist/index.html
+
+      - name: Upload test artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "dist"
+          path: "test-dist"
 
       - name: Deploy to GitHub Pages
         id: deployment
