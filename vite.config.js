@@ -9,4 +9,5 @@ export default {
     assetsDir: "assets",
     sourcemap: true,
   },
+  root: "src",
 };
