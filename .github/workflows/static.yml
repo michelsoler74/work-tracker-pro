@@ -32,10 +32,14 @@ jobs:
           pwd
           echo "Directory contents:"
           ls -la
+          echo "Package.json content:"
+          cat package.json
+          echo "Vite config content:"
+          cat vite.config.js
 
       - name: Install dependencies
         run: |
-          npm ci
+          npm install
           echo "Node version:"
           node -v
           echo "NPM version:"
@@ -45,19 +49,37 @@ jobs:
 
       - name: Build
         run: |
+          echo "Running build..."
           npm run build
           echo "Build output:"
           ls -la dist/
+          echo "Checking for index.html:"
+          if [ -f "dist/index.html" ]; then
+            echo "index.html found in dist folder"
+          else
+            echo "ERROR: index.html NOT found in dist folder"
+            echo "Checking source directory:"
+            ls -la src/
+          fi
 
       - name: Verify dist contents
-        if: success()
+        if: always()
         run: |
-          if [ ! -f "dist/index.html" ]; then
-            echo "Error: index.html not found in dist folder"
+          echo "Checking all directories:"
+          ls -la
+          if [ -d "dist" ]; then
+            echo "Dist directory exists, checking contents:"
+            find dist -type f | sort
+            if [ ! -f "dist/index.html" ]; then
+              echo "Error: index.html not found in dist folder"
+              exit 1
+            else
+              echo "Success: index.html found in dist folder"
+            fi
+          else
+            echo "Error: dist directory does not exist!"
             exit 1
           fi
-          echo "dist folder contents:"
-          find dist -type f
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
