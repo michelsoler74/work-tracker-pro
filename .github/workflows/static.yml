@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy Static Test Page
 
 on:
   push:
@@ -20,80 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-          cache: "npm"
-
-      - name: Verify workspace
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Directory contents:"
-          ls -la
-          echo "Package.json content:"
-          cat package.json
-          echo "Vite config content:"
-          cat vite.config.js
-
-      - name: Install dependencies
-        run: |
-          npm install
-          echo "Node version:"
-          node -v
-          echo "NPM version:"
-          npm -v
-          echo "Installed packages:"
-          npm list --depth=0
-
-      - name: Build
-        run: |
-          echo "Running build..."
-          echo "Listing src directory:"
-          ls -la src/
-          echo "Content of package.json:"
-          cat package.json
-          echo "Content of vite.config.js:"
-          cat vite.config.js
-          echo "-------- RUNNING BUILD --------"
-          npm run build || true
-          echo "-------- BUILD FINISHED --------"
-          echo "Checking if dist exists:"
-          ls -la || true
-          if [ -d "dist" ]; then
-            echo "Dist directory exists, listing contents:"
-            ls -la dist/ || true
-          else
-            echo "Dist directory does not exist!"
-            echo "Checking current directory structure:"
-            pwd
-            find . -type d -maxdepth 2 || true
-          fi
-
-      - name: Verify dist contents
-        if: always()
-        run: |
-          echo "Checking all directories:"
-          ls -la
-          if [ -d "dist" ]; then
-            echo "Dist directory exists, checking contents:"
-            find dist -type f | sort
-            if [ ! -f "dist/index.html" ]; then
-              echo "Error: index.html not found in dist folder"
-              exit 1
-            else
-              echo "Success: index.html found in dist folder"
-            fi
-          else
-            echo "Error: dist directory does not exist!"
-            exit 1
-          fi
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Create test HTML
+      - name: Create test page only
         run: |
           echo "Creating test HTML file"
           mkdir -p test-dist
@@ -104,18 +31,29 @@ jobs:
             <title>Work Tracker Pro - Test Page</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; line-height: 1.6; }
+              .container { max-width: 800px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+              h1 { color: #0066cc; }
+              .success { color: green; font-weight: bold; }
+            </style>
           </head>
           <body>
-            <h1>Work Tracker Pro</h1>
-            <p>Esta es una página de prueba para GitHub Pages</p>
-            <p>Si puedes ver esta página, el despliegue básico funciona.</p>
+            <div class="container">
+              <h1>Work Tracker Pro</h1>
+              <p>Esta es una página de prueba para GitHub Pages</p>
+              <p class="success">✅ Si puedes ver esta página, el despliegue básico funciona correctamente.</p>
+              <p>Una vez que esta página funcione, podremos implementar la aplicación completa.</p>
+            </div>
           </body>
           </html>
           EOL
-          echo "Test HTML created:"
-          cat test-dist/index.html
+          echo "Test HTML created successfully"
 
-      - name: Upload test artifact
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload test page
         uses: actions/upload-pages-artifact@v3
         with:
           path: "test-dist"
