@@ -50,16 +50,25 @@ jobs:
       - name: Build
         run: |
           echo "Running build..."
-          npm run build
-          echo "Build output:"
-          ls -la dist/
-          echo "Checking for index.html:"
-          if [ -f "dist/index.html" ]; then
-            echo "index.html found in dist folder"
+          echo "Listing src directory:"
+          ls -la src/
+          echo "Content of package.json:"
+          cat package.json
+          echo "Content of vite.config.js:"
+          cat vite.config.js
+          echo "-------- RUNNING BUILD --------"
+          npm run build || true
+          echo "-------- BUILD FINISHED --------"
+          echo "Checking if dist exists:"
+          ls -la || true
+          if [ -d "dist" ]; then
+            echo "Dist directory exists, listing contents:"
+            ls -la dist/ || true
           else
-            echo "ERROR: index.html NOT found in dist folder"
-            echo "Checking source directory:"
-            ls -la src/
+            echo "Dist directory does not exist!"
+            echo "Checking current directory structure:"
+            pwd
+            find . -type d -maxdepth 2 || true
           fi
 
       - name: Verify dist contents
