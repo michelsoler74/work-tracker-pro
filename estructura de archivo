@@ -1,0 +1,6 @@
+project/
+  ├─ index.html
+  ├─ style.css
+  ├─ app.js
+  ├─ voice.js
+  └─ firebase.js

@@ -1,0 +1,27 @@
+Términos y Condiciones de Uso - Work Tracker Pro
+
+1. Aceptación de los términos
+Al instalar y utilizar Work Tracker Pro, usted acepta estos términos y condiciones.
+
+2. Licencia de uso
+Se le otorga una licencia personal, no exclusiva y no transferible para usar el software.
+
+3. Restricciones
+No está permitido:
+- Modificar o crear trabajos derivados
+- Realizar ingeniería inversa
+- Redistribuir el software
+
+4. Privacidad
+Sus datos se almacenan localmente en su dispositivo.
+
+5. Actualizaciones
+El software puede actualizarse automáticamente para mejorar su funcionamiento.
+
+6. Garantía
+El software se proporciona "tal cual", sin garantías de ningún tipo.
+
+7. Limitación de responsabilidad
+No nos hacemos responsables de daños directos, indirectos o consecuentes.
+
+Copyright © 2024 Work Tracker Pro. Todos los derechos reservados. 

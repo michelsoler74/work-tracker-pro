@@ -1,0 +1,52 @@
+appId: com.worktrackerpro.app
+productName: "Work Tracker Pro"
+copyright: "Copyright © 2024"
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - "dist/**/*"
+  - "src/electron.js"
+  - "src/assets/icons/**/*"
+  - "!**/node_modules/*"
+
+win:
+  icon: "src/assets/icons/icon-512x512.ico"
+  target:
+    - target: "nsis"
+      arch:
+        - "x64"
+  sign: false
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Work Tracker Pro"
+  uninstallDisplayName: "Work Tracker Pro"
+  displayLanguageSelector: true
+  language: "3082" # Español
+  installerIcon: "src/assets/icons/icon-512x512.ico"
+  uninstallerIcon: "src/assets/icons/icon-512x512.ico"
+  installerHeaderIcon: "src/assets/icons/icon-512x512.ico"
+  menuCategory: true
+  license: "LICENSE.txt"
+
+mac:
+  icon: "src/assets/icons/icon-512x512.png"
+  category: "public.app-category.productivity"
+  target:
+    - target: "dmg"
+    - target: "zip"
+
+linux:
+  icon: "src/assets/icons/icon-512x512.png"
+  category: "Office"
+  target:
+    - target: "AppImage"
+    - target: "deb"
+    - target: "rpm"
