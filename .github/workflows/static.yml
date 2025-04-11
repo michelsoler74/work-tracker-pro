@@ -24,12 +24,40 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "18"
+          cache: "npm"
+
+      - name: Verify workspace
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Directory contents:"
+          ls -la
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm ci
+          echo "Node version:"
+          node -v
+          echo "NPM version:"
+          npm -v
+          echo "Installed packages:"
+          npm list --depth=0
 
       - name: Build
-        run: npm run build
+        run: |
+          npm run build
+          echo "Build output:"
+          ls -la dist/
+
+      - name: Verify dist contents
+        if: success()
+        run: |
+          if [ ! -f "dist/index.html" ]; then
+            echo "Error: index.html not found in dist folder"
+            exit 1
+          fi
+          echo "dist folder contents:"
+          find dist -type f
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -37,7 +65,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
-          path: "./dist"
+          path: "dist"
 
       - name: Deploy to GitHub Pages
         id: deployment
