@@ -32,20 +32,104 @@
         font-size: 18px;
         margin: 20px 0;
       }
+      .btn {
+        display: inline-block;
+        background-color: #0066cc;
+        color: white;
+        padding: 10px 15px;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+        margin: 10px 5px;
+      }
+      .btn:hover {
+        background-color: #0056b3;
+      }
+      .features {
+        margin: 30px 0;
+        padding: 0;
+        list-style-type: none;
+      }
+      .features li {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+      }
+      .features li:last-child {
+        border-bottom: none;
+      }
+      .features i {
+        color: #0066cc;
+        margin-right: 10px;
+      }
+      .text-center {
+        text-align: center;
+      }
+      .footer {
+        margin-top: 30px;
+        text-align: center;
+        color: #666;
+        font-size: 14px;
+      }
     </style>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
   </head>
   <body>
     <div class="container">
       <h1>Work Tracker Pro</h1>
-      <p class="success">✅ ¡GitHub Pages está funcionando correctamente!</p>
-      <p>
-        Esta es una página estática simple para demostrar que GitHub Pages está
-        configurado correctamente para este repositorio.
+      <p class="success">
+        <i class="fas fa-check-circle"></i> ¡GitHub Pages está funcionando
+        correctamente!
       </p>
+
       <p>
-        Una vez que esta página esté visible, podremos implementar la aplicación
-        completa de Work Tracker Pro.
+        Work Tracker Pro es una aplicación de gestión de trabajos y trabajadores
+        diseñada para funcionar tanto en escritorio como en dispositivos
+        móviles, incluso sin conexión a internet.
       </p>
+
+      <ul class="features">
+        <li>
+          <i class="fas fa-desktop"></i> <strong>Versión escritorio</strong>:
+          Aplicación Electron para Windows, macOS y Linux
+        </li>
+        <li>
+          <i class="fas fa-mobile-alt"></i> <strong>Versión móvil</strong>:
+          Progressive Web App (PWA) para dispositivos Android e iOS
+        </li>
+        <li>
+          <i class="fas fa-database"></i> <strong>Almacenamiento local</strong>:
+          Guarda datos en IndexedDB para acceso offline
+        </li>
+        <li>
+          <i class="fas fa-microphone"></i> <strong>Dictado por voz</strong>:
+          Permite dictar información en los formularios
+        </li>
+        <li>
+          <i class="fas fa-sync"></i> <strong>Sincronización</strong>:
+          Sincroniza datos cuando hay conexión a internet
+        </li>
+      </ul>
+
+      <div class="text-center">
+        <a href="https://github.com/michelsoler74/work-tracker-pro" class="btn"
+          ><i class="fab fa-github"></i> Ver código fuente</a
+        >
+        <a
+          href="https://github.com/michelsoler74/work-tracker-pro#readme"
+          class="btn"
+          ><i class="fas fa-book"></i> Documentación</a
+        >
+      </div>
+
+      <div class="footer">
+        <p>
+          Desarrollado como parte de un proyecto de aprendizaje. &copy; 2024
+          Michel Soler
+        </p>
+      </div>
     </div>
   </body>
 </html>
