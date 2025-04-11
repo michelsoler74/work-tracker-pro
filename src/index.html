@@ -17,7 +17,7 @@
       crossorigin="anonymous"
     />
     <!-- Custom CSS -->
-    <link href="/css/style.css" rel="stylesheet" />
+    <link href="./css/style.css" rel="stylesheet" />
     <!-- PWA manifest y otros metadatos -->
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0d6efd" />
@@ -44,7 +44,7 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker
-            .register("/sw.js")
+            .register("./sw.js")
             .then((registration) => {
               console.log("Service Worker registrado:", registration);
             })

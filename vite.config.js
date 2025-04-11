@@ -8,6 +8,8 @@ export default {
     outDir: "dist",
     assetsDir: "assets",
     sourcemap: true,
+    emptyOutDir: true,
   },
   root: "src",
+  publicDir: "public",
 };
