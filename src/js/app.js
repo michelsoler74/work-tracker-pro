@@ -27,6 +27,15 @@ class WorkTrackerApp {
   async initializeApp() {
     console.log("Inicializando WorkTrackerApp...");
 
+     // Crear y agregar el spinner al DOM
+     this.spinner = document.createElement("div");
+     this.spinner.className = "d-flex justify-content-center mt-3 d-none"; // Inicialmente oculto
+     this.spinner.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>';
+     document.body.insertBefore(this.spinner, document.body.firstChild); // Insertar al principio del body
+     
+     
+    
+
     // Estado de la aplicación
     this.state = {
       fotosSeleccionadas: [],
@@ -34,14 +43,27 @@ class WorkTrackerApp {
     };
 
     // Inicializar la interfaz
-    this.initializeUI();
+    this.initializeUI();    
 
-    // Cargar datos existentes
-    await this.loadData();
+    // Mostrar el spinner antes de cargar los datos
+    this.spinner.classList.remove("d-none");
+    
+    try {
+      // Cargar datos existentes
+      await this.loadData();
 
-    // Configurar eventos
-    this.setupEventListeners();
+      
+    } catch (error) {
+        console.error("Error al cargar los datos en initializeApp:", error);
+    } finally {
+      // Ocultar el spinner después de cargar los datos (ya sea exitosamente o con error)
+      spinner.classList.add("d-none");
+    }
 
+     // Configurar eventos
+     this.setupEventListeners();
+    
+    
     // Mostrar mensaje de bienvenida
     showNotification("¡Bienvenido a Work Tracker Pro!", "info");
   }
@@ -217,6 +239,27 @@ class WorkTrackerApp {
     e.preventDefault();
     const formData = new FormData(this.jobForm);
 
+    // Validar que los campos obligatorios estén llenos
+    const titulo = formData.get("titulo");
+    const descripcion = formData.get("descripcion");
+    const fecha = formData.get("fecha");
+    const estado = formData.get("estado");
+
+    if (!titulo) {
+      showNotification("El título es requerido", "danger");
+      return; // Detener la ejecución si falta el título
+    }
+    if (!descripcion) {
+      showNotification("La descripción es requerida", "danger");
+      return;
+    }
+    if (!fecha || !estado) {
+        showNotification("La fecha y el estado son requeridos", "danger");
+        return;
+    }
+    // Mostrar el spinner antes de la operación
+    this.spinner.classList.remove("d-none");
+
     try {
       const jobData = {
         title: formData.get("titulo"),
@@ -237,15 +280,42 @@ class WorkTrackerApp {
         error.message || "Error al guardar el trabajo",
         "danger"
       );
+    } finally {
+       // Ocultar el spinner después de la operación
+      this.spinner.classList.add("d-none");
     }
   }
 
   async handleWorkerSubmit(e) {
     e.preventDefault();
     const formData = new FormData(this.workerForm);
+    
+    // Validar los datos del formulario
+    const nombre = formData.get("nombre");
+    const especialidad = formData.get("especialidad");
+    const email = formData.get("email");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    // Validar que los campos obligatorios estén llenos
+    if (!nombre) {
+      showNotification("El nombre es requerido", "danger");
+      return;
+    }
+    if (!especialidad) {
+      showNotification("La especialidad es requerida", "danger");
+      return;
+    }
+    // Validar que el email tenga un formato correcto si se ha ingresado
+    if (email && !emailRegex.test(email)) {
+      showNotification("El email no tiene un formato válido", "danger");
+      return;
+    }
+    // Mostrar el spinner antes de la operación
+    this.spinner.classList.remove("d-none");
+    
 
     try {
-      const workerData = {
+      const workerData = {        
         name: formData.get("nombre"),
         specialty: formData.get("especialidad"),
         phone: formData.get("telefono"),
@@ -263,6 +333,9 @@ class WorkTrackerApp {
         error.message || "Error al guardar el trabajador",
         "danger"
       );
+    }finally {
+       // Ocultar el spinner después de la operación
+       this.spinner.classList.add("d-none");
     }
   }
 
@@ -324,6 +397,13 @@ class WorkTrackerApp {
               }" onclick="window.app.showJobDetails('${
           job.id
         }')" title="Ver detalles">
+                <i class="fas fa-edit"></i>
+                </button>
+              <button class="btn btn-sm btn-secondary me-2" data-job-id="${
+                job.id
+              }" onclick="window.app.editJob('${
+          job.id
+        }')" title="Editar">
                 <i class="fas fa-eye"></i>
               </button>
               <button class="btn btn-sm btn-danger" data-job-id="${
@@ -555,6 +635,8 @@ class WorkTrackerApp {
 
   async deleteJob(jobId) {
     if (confirm("¿Estás seguro de que deseas eliminar este trabajo?")) {
+      // Mostrar el spinner antes de la operación
+      this.spinner.classList.remove("d-none");
       try {
         await jobService.deleteJob(jobId);
         this.renderJobs();
@@ -566,11 +648,17 @@ class WorkTrackerApp {
           "danger"
         );
       }
+       finally {
+        // Ocultar el spinner después de la operación
+        this.spinner.classList.add("d-none");
+      }
     }
   }
 
   async deleteWorker(workerId) {
     if (confirm("¿Estás seguro de que deseas eliminar este trabajador?")) {
+      this.spinner.classList.remove("d-none");
+
       try {
         await workerService.deleteWorker(workerId);
         this.renderWorkers();
@@ -582,6 +670,9 @@ class WorkTrackerApp {
           error.message || "Error al eliminar el trabajador",
           "danger"
         );
+      }finally {
+         // Ocultar el spinner después de la operación
+        this.spinner.classList.add("d-none");
       }
     }
   }
