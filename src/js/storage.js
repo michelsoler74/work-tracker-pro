@@ -106,31 +106,18 @@ class StorageService {
     });
   }
 
-  async update(storeName, item) {
-    await this.ensureDBInitialized();
-
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        reject(new Error("La base de datos no está inicializada"));
-        return;
-      }
-
-      try {
-        const transaction = this.db.transaction(storeName, "readwrite");
-        const store = transaction.objectStore(storeName);
-        const request = store.put(item);
-
-        request.onsuccess = () => {
-          resolve(request.result);
-        };
-
-        request.onerror = (event) => {
-          reject(event.target.error);
-        };
-      } catch (error) {
-        reject(error);
-      }
-    });
+  async update(storeName, id, data) {
+    try {
+      const db = await this.openDB();
+      const tx = db.transaction(storeName, "readwrite");
+      const store = tx.objectStore(storeName);
+      await store.put(data);
+      await tx.complete;
+      return data;
+    } catch (error) {
+      console.error(`Error al actualizar en ${storeName}:`, error);
+      throw error;
+    }
   }
 
   async delete(storeName, id) {

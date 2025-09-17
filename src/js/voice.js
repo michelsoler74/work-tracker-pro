@@ -3,6 +3,15 @@
 import { showNotification } from "./utils/notifications.js";
 import { sanitizeText, debounce } from "./utils/helpers.js";
 
+// Detectar si es un dispositivo móvil y el navegador
+const isMobile =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+const isChrome = /Chrome/i.test(navigator.userAgent);
+const isSafari =
+  /Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent);
+
 // Función para formatear el texto según el tipo de campo
 function formatText(text, inputType) {
   text = sanitizeText(text);
@@ -65,18 +74,12 @@ function processSpecialCommands(text, inputElement) {
   return commands[command] ? commands[command]() : false;
 }
 
-// Configuración del reconocimiento de voz
-const recognition = new (window.SpeechRecognition ||
-  window.webkitSpeechRecognition)();
-recognition.lang = "es-ES";
-recognition.continuous = false;
-recognition.interimResults = false;
-
+let recognition = null;
 let currentInput = null;
 let isListening = false;
 
 // Función para inicializar el reconocimiento de voz
-export function initVoiceRecognition(inputElement) {
+export async function initVoiceRecognition(inputElement) {
   if (!inputElement) {
     showNotification(
       "Error: No se proporcionó un elemento de entrada",
@@ -91,16 +94,35 @@ export function initVoiceRecognition(inputElement) {
     return;
   }
 
-  currentInput = inputElement;
-  const button = inputElement.parentElement?.querySelector(".btn-voice");
-
   try {
+    // Inicializar el reconocimiento de voz si aún no existe
+    if (!recognition) {
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        throw new Error(
+          "El reconocimiento de voz no está soportado en este navegador"
+        );
+      }
+      recognition = new SpeechRecognition();
+      recognition.lang = "es-ES";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      // Ajustes específicos para móviles
+      if (isMobile) {
+        recognition.continuous = false;
+      }
+    }
+
+    currentInput = inputElement;
+    const button = inputElement.parentElement?.querySelector(".btn-voice");
+
     // Configurar eventos del reconocimiento
     recognition.onstart = () => {
       console.log("Reconocimiento de voz iniciado");
       isListening = true;
 
-      // Actualizar UI
       if (button) {
         button.classList.add("listening");
         const icon = button.querySelector(".fa-microphone");
@@ -108,63 +130,89 @@ export function initVoiceRecognition(inputElement) {
       }
       currentInput.classList.add("listening");
 
-      // Mostrar notificación
       showNotification("Escuchando... Habla ahora", "info");
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      console.log("Texto reconocido:", transcript);
+      const results = Array.from(event.results);
+      let finalTranscript = "";
+      let interimTranscript = "";
 
-      // Procesar comandos especiales primero
-      if (!processSpecialCommands(transcript, currentInput)) {
-        const formattedText = formatText(transcript, currentInput.type);
-
-        // Si es un textarea, insertar en la posición del cursor
-        if (currentInput.tagName.toLowerCase() === "textarea") {
-          const start = currentInput.selectionStart;
-          const end = currentInput.selectionEnd;
-          const text = currentInput.value;
-          const before = text.substring(0, start);
-          const after = text.substring(end);
-          currentInput.value = before + formattedText + after;
-          currentInput.selectionStart = currentInput.selectionEnd =
-            start + formattedText.length;
+      results.forEach((result) => {
+        const transcript = result[0].transcript;
+        if (result.isFinal) {
+          finalTranscript += transcript + " ";
         } else {
-          // Para inputs normales
-          currentInput.value = formattedText;
+          interimTranscript = transcript;
         }
+      });
 
-        // Mostrar notificación de éxito
-        showNotification(`Texto reconocido: "${formattedText}"`, "success");
+      // Mostrar resultados intermedios
+      if (interimTranscript) {
+        currentInput.value = formatText(interimTranscript, currentInput.type);
       }
 
-      // Disparar evento de input para activar validaciones
-      currentInput.dispatchEvent(new Event("input", { bubbles: true }));
+      // Procesar resultado final
+      if (finalTranscript) {
+        currentInput.value = formatText(finalTranscript, currentInput.type);
+        currentInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+        if (isMobile) {
+          stopListening();
+          showNotification("Texto reconocido correctamente", "success");
+        }
+      }
     };
 
     recognition.onerror = (event) => {
       console.error("Error en reconocimiento de voz:", event.error);
-      showNotification(
-        `Error en reconocimiento de voz: ${event.error}`,
-        "danger"
-      );
+      if (event.error === "not-allowed") {
+        showNotification(
+          "Por favor, permite el acceso al micrófono para usar el reconocimiento de voz",
+          "warning"
+        );
+      } else if (event.error === "no-speech") {
+        showNotification(
+          "No se detectó ninguna voz. Por favor, intenta hablar de nuevo",
+          "warning"
+        );
+      } else {
+        showNotification(
+          "Error en el reconocimiento de voz. Por favor, intenta de nuevo",
+          "warning"
+        );
+      }
       stopListening();
     };
 
     recognition.onend = () => {
       console.log("Reconocimiento de voz finalizado");
       stopListening();
+
+      // Reiniciar automáticamente en dispositivos móviles si no hay resultado final
+      if (isMobile && currentInput && currentInput.value === "") {
+        setTimeout(() => {
+          recognition.start();
+        }, 100);
+      }
     };
 
     // Iniciar reconocimiento
     recognition.start();
   } catch (error) {
     console.error("Error al iniciar reconocimiento de voz:", error);
-    showNotification(
-      "El reconocimiento de voz no está disponible en este navegador",
-      "danger"
-    );
+    if (error.name === "NotAllowedError") {
+      showNotification(
+        "Por favor, permite el acceso al micrófono para usar el reconocimiento de voz",
+        "warning"
+      );
+    } else {
+      showNotification(
+        "El reconocimiento de voz no está disponible en este navegador",
+        "danger"
+      );
+    }
+    stopListening();
   }
 }
 
@@ -183,14 +231,16 @@ function stopListening() {
     currentInput.classList.remove("listening");
   }
 
-  try {
-    recognition.stop();
-  } catch (error) {
-    console.error("Error al detener reconocimiento:", error);
+  if (recognition) {
+    try {
+      recognition.stop();
+    } catch (error) {
+      console.error("Error al detener reconocimiento:", error);
+    }
   }
 
   currentInput = null;
 }
 
-// Exponer la función globalmente para que sea accesible desde el HTML
+// Exponer la función globalmente
 window.initVoiceRecognition = initVoiceRecognition;

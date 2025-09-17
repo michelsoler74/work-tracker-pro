@@ -1,26 +1,32 @@
 import { storageService } from "../storage.js";
 import { showNotification } from "../utils/notifications.js";
 import { generateId, formatDate, validateForm } from "../utils/helpers.js";
+import { openDB } from "../utils/indexedDB.js";
 
 export class WorkerService {
   constructor() {
     this.workers = [];
     this.storeName = "workers";
-    this.loadWorkers();
+    this.initialized = false;
+  }
+
+  async init() {
+    if (this.initialized) return;
+    await this.loadWorkers();
+    this.initialized = true;
   }
 
   async loadWorkers() {
     try {
-      await storageService.ensureStoresExist();
-
-      this.workers = await storageService.getAll(this.storeName);
-      console.log(`Cargados ${this.workers.length} trabajadores`);
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readonly");
+      const store = tx.objectStore(this.storeName);
+      this.workers = await store.getAll();
       return this.workers;
     } catch (error) {
-      console.error("Error al cargar trabajadores:", error);
+      console.error("Error loading workers:", error);
       showNotification("Error al cargar los trabajadores", "danger");
-      this.workers = [];
-      return [];
+      throw error;
     }
   }
 
@@ -44,9 +50,11 @@ export class WorkerService {
         createdAt: new Date().toISOString(),
       };
 
-      await storageService.add(this.storeName, worker);
-
-      this.workers.push(worker);
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readwrite");
+      const store = tx.objectStore(this.storeName);
+      await store.add(worker);
+      await this.loadWorkers();
 
       showNotification("Trabajador guardado con éxito", "success");
       return worker;
@@ -62,11 +70,14 @@ export class WorkerService {
 
   async deleteWorker(workerId) {
     try {
-      await storageService.delete(this.storeName, workerId);
-
-      this.workers = this.workers.filter((worker) => worker.id !== workerId);
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readwrite");
+      const store = tx.objectStore(this.storeName);
+      await store.delete(workerId);
+      await this.loadWorkers();
 
       showNotification("Trabajador eliminado con éxito", "success");
+      return true;
     } catch (error) {
       console.error("Error al eliminar trabajador:", error);
       showNotification("Error al eliminar el trabajador", "danger");
@@ -78,10 +89,11 @@ export class WorkerService {
     try {
       this.validateWorkerData(workerData);
 
-      const existingWorker = await storageService.getById(
-        this.storeName,
-        workerData.id
-      );
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readwrite");
+      const store = tx.objectStore(this.storeName);
+
+      const existingWorker = await store.get(workerData.id);
       if (!existingWorker) {
         throw new Error("Trabajador no encontrado");
       }
@@ -104,14 +116,8 @@ export class WorkerService {
         updatedAt: new Date().toISOString(),
       };
 
-      await storageService.update(this.storeName, updatedWorker);
-
-      const index = this.workers.findIndex(
-        (worker) => worker.id === updatedWorker.id
-      );
-      if (index !== -1) {
-        this.workers[index] = updatedWorker;
-      }
+      await store.put(updatedWorker);
+      await this.loadWorkers();
 
       showNotification("Trabajador actualizado con éxito", "success");
       return updatedWorker;
@@ -131,7 +137,11 @@ export class WorkerService {
         throw new Error("Las horas deben ser un número positivo");
       }
 
-      const worker = await storageService.getById(this.storeName, workerId);
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readwrite");
+      const store = tx.objectStore(this.storeName);
+
+      const worker = await store.get(workerId);
       if (!worker) {
         throw new Error("Trabajador no encontrado");
       }
@@ -139,12 +149,8 @@ export class WorkerService {
       worker.hours = Number(worker.hours || 0) + Number(hours);
       worker.updatedAt = new Date().toISOString();
 
-      await storageService.update(this.storeName, worker);
-
-      const index = this.workers.findIndex((w) => w.id === workerId);
-      if (index !== -1) {
-        this.workers[index] = worker;
-      }
+      await store.put(worker);
+      await this.loadWorkers();
 
       showNotification(`Horas actualizadas para ${worker.name}`, "success");
       return worker;
@@ -158,22 +164,8 @@ export class WorkerService {
     }
   }
 
-  async getWorkerById(workerId) {
-    try {
-      const worker = await storageService.getById(this.storeName, workerId);
-      if (!worker) {
-        console.warn(`Trabajador con ID ${workerId} no encontrado`);
-        return null;
-      }
-      return worker;
-    } catch (error) {
-      console.error("Error al obtener trabajador:", error);
-      showNotification(
-        "Error al obtener los detalles del trabajador",
-        "danger"
-      );
-      throw error;
-    }
+  getWorkerById(workerId) {
+    return this.workers.find((worker) => worker.id === workerId);
   }
 
   getWorkerStats() {
@@ -261,6 +253,10 @@ export class WorkerService {
       return false;
     }
   }
+
+  getAllWorkers() {
+    return this.workers;
+  }
 }
 
-export const workerService = new WorkerService();
+export default WorkerService;

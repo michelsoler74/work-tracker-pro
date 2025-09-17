@@ -1,152 +1,100 @@
-import { storageService } from "../storage.js";
+import { openDB } from "../utils/indexedDB.js";
+import WorkerService from "./worker.service.js";
 import { showNotification } from "../utils/notifications.js";
-import { workerService } from "./worker.service.js";
 import { generateId, formatDate, validateForm } from "../utils/helpers.js";
 
-export class JobService {
+class JobService {
   constructor() {
     this.jobs = [];
     this.storeName = "jobs";
-    this.loadJobs();
+    this.workerService = new WorkerService();
+    this.initialized = false;
+  }
+
+  async init() {
+    if (this.initialized) return;
+    await Promise.all([this.loadJobs(), this.workerService.init()]);
+    this.initialized = true;
   }
 
   async loadJobs() {
     try {
-      await storageService.ensureStoresExist();
-
-      this.jobs = await storageService.getAll(this.storeName);
-      console.log(`Cargados ${this.jobs.length} trabajos`);
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readonly");
+      const store = tx.objectStore(this.storeName);
+      this.jobs = await store.getAll();
       return this.jobs;
     } catch (error) {
-      console.error("Error al cargar trabajos:", error);
+      console.error("Error loading jobs:", error);
       showNotification("Error al cargar los trabajos", "danger");
-      this.jobs = [];
-      return [];
+      throw error;
     }
   }
 
-  async addJob(jobData) {
+  async addJob(job) {
     try {
-      this.validateJobData(jobData);
-
-      const processedImages = await this.processImages(jobData.images);
-
-      const job = {
-        id: generateId(),
-        title: jobData.title,
-        description: jobData.description,
-        date: jobData.date,
-        status: jobData.status,
-        workerId: jobData.workerId || null,
-        images: processedImages,
-        createdAt: new Date().toISOString(),
-      };
-
-      await storageService.add(this.storeName, job);
-
-      this.jobs.push(job);
-
-      showNotification("Trabajo guardado con éxito", "success");
-      return job;
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readwrite");
+      const store = tx.objectStore(this.storeName);
+      await store.add(job);
+      await this.loadJobs();
+      return true;
     } catch (error) {
-      console.error("Error al añadir trabajo:", error);
-      showNotification(
-        error.message || "Error al guardar el trabajo",
-        "danger"
-      );
+      console.error("Error adding job:", error);
+      throw error;
+    }
+  }
+
+  async updateJob(job) {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readwrite");
+      const store = tx.objectStore(this.storeName);
+      await store.put(job);
+      await this.loadJobs();
+      return true;
+    } catch (error) {
+      console.error("Error updating job:", error);
       throw error;
     }
   }
 
   async deleteJob(jobId) {
     try {
-      await storageService.delete(this.storeName, jobId);
-
-      this.jobs = this.jobs.filter((job) => job.id !== jobId);
-
-      showNotification("Trabajo eliminado con éxito", "success");
+      const db = await openDB();
+      const tx = db.transaction(this.storeName, "readwrite");
+      const store = tx.objectStore(this.storeName);
+      await store.delete(jobId);
+      await this.loadJobs();
+      return true;
     } catch (error) {
-      console.error("Error al eliminar trabajo:", error);
-      showNotification("Error al eliminar el trabajo", "danger");
+      console.error("Error deleting job:", error);
       throw error;
     }
   }
 
-  async updateJob(jobData) {
-    try {
-      this.validateJobData(jobData);
-
-      const existingJob = await storageService.getById(
-        this.storeName,
-        jobData.id
-      );
-      if (!existingJob) {
-        throw new Error("Trabajo no encontrado");
-      }
-
-      let processedImages = existingJob.images || [];
-      if (jobData.images && jobData.images.length > 0) {
-        const newImages = await this.processImages(jobData.images);
-        processedImages = [...processedImages, ...newImages];
-      }
-
-      const updatedJob = {
-        ...existingJob,
-        title: jobData.title,
-        description: jobData.description,
-        date: jobData.date,
-        status: jobData.status,
-        workerId: jobData.workerId || null,
-        images: processedImages,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await storageService.update(this.storeName, updatedJob);
-
-      const index = this.jobs.findIndex((job) => job.id === updatedJob.id);
-      if (index !== -1) {
-        this.jobs[index] = updatedJob;
-      }
-
-      showNotification("Trabajo actualizado con éxito", "success");
-      return updatedJob;
-    } catch (error) {
-      console.error("Error al actualizar trabajo:", error);
-      showNotification(
-        error.message || "Error al actualizar el trabajo",
-        "danger"
-      );
-      throw error;
-    }
+  getJobById(jobId) {
+    return this.jobs.find((job) => job.id === jobId);
   }
 
-  async getJobById(jobId) {
-    try {
-      const job = await storageService.getById(this.storeName, jobId);
-      if (!job) {
-        console.warn(`Trabajo con ID ${jobId} no encontrado`);
-        return null;
-      }
-      return job;
-    } catch (error) {
-      console.error("Error al obtener trabajo:", error);
-      showNotification("Error al obtener los detalles del trabajo", "danger");
-      throw error;
-    }
+  getAllJobs() {
+    return this.jobs;
   }
 
-  getJobsByWorker(workerId) {
-    return this.jobs.filter((j) => j.workerId === workerId);
+  getWorkerJobs(workerId) {
+    return this.jobs.filter((job) => job.workerId === workerId);
   }
 
   getJobStats() {
     const totalJobs = this.jobs.length;
     const completedJobs = this.jobs.filter(
-      (j) => j.status === "completed"
+      (j) => j.status === "Completado"
     ).length;
-    const pendingJobs = this.jobs.filter((j) => j.status === "pending").length;
+    const pendingJobs = this.jobs.filter(
+      (j) => j.status === "Pendiente"
+    ).length;
     const inProgressJobs = this.jobs.filter(
-      (j) => j.status === "in-progress"
+      (j) => j.status === "En Progreso"
     ).length;
 
     return {
@@ -211,6 +159,26 @@ export class JobService {
       return false;
     }
   }
+
+  async completeJob(id) {
+    return this.updateJob(id, { status: "Completado" });
+  }
+
+  async startJob(id) {
+    return this.updateJob(id, { status: "En Progreso" });
+  }
+
+  getPendingJobs() {
+    return this.jobs.filter((job) => job.status === "Pendiente");
+  }
+
+  getCompletedJobs() {
+    return this.jobs.filter((job) => job.status === "Completado");
+  }
+
+  getInProgressJobs() {
+    return this.jobs.filter((job) => job.status === "En Progreso");
+  }
 }
 
-export const jobService = new JobService();
+export default JobService;

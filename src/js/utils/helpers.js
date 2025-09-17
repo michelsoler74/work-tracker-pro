@@ -32,10 +32,11 @@ export function formatDate(date) {
  * @returns {boolean} True si todos los campos requeridos tienen valor
  */
 export function validateForm(data, requiredFields) {
-  return requiredFields.every((field) => {
+  const missingFields = requiredFields.filter((field) => {
     const value = data[field];
-    return value !== null && value !== undefined && value !== "";
+    return value === null || value === undefined || value === "";
   });
+  return missingFields;
 }
 
 /**

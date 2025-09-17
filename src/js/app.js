@@ -1,589 +1,437 @@
 // Registro del Service Worker
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/service-worker.js")
-      .then((registration) => {
-        console.log("Service Worker registrado con éxito:", registration.scope);
-      })
-      .catch((error) => {
-        console.error("Error al registrar el Service Worker:", error);
-      });
+  window.addEventListener("load", async () => {
+    try {
+      // Solicitar permisos para el micrófono
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("Permiso de micrófono concedido");
+      }
+
+      // Registrar el Service Worker con la ruta correcta
+      const swPath = window.location.pathname.endsWith("/")
+        ? "sw.js"
+        : "/sw.js";
+
+      const registration = await navigator.serviceWorker.register(swPath);
+      console.log("Service Worker registrado con éxito:", registration.scope);
+    } catch (error) {
+      console.error("Error al configurar la aplicación:", error);
+      if (error.name === "NotAllowedError") {
+        showNotification(
+          "Se requiere permiso para usar el micrófono",
+          "warning"
+        );
+      }
+    }
   });
 }
 
 // Aplicación principal
-import { storageService } from "./storage.js";
-import { jobService } from "./services/job.service.js";
-import { workerService } from "./services/worker.service.js";
+import JobService from "./services/job.service.js";
+import WorkerService from "./services/worker.service.js";
+import UI from "./ui.js";
 import { initVoiceRecognition } from "./voice.js";
 import { showNotification } from "./utils/notifications.js";
+import { generateId } from "./utils/helpers.js";
+import { searchService } from "./utils/search.js";
+import { FormValidator, jobValidator, workerValidator } from "./utils/validator.js";
+import { loadingManager, SkeletonLoader, ConfirmationModal, FeedbackUtils } from "./utils/loading.js";
 
 class WorkTrackerApp {
   constructor() {
-    this.initializeApp();
-  }
+    // Inicializar servicios
+    this.jobService = new JobService();
+    this.workerService = new WorkerService();
+    this.ui = new UI();
 
-  async initializeApp() {
-    console.log("Inicializando WorkTrackerApp...");
-
-    // Estado de la aplicación
+    // Estado inicial
     this.state = {
       fotosSeleccionadas: [],
       workerPhotoSelected: null,
+      currentJobSearch: '',
+      currentJobStatusFilter: '',
+      currentWorkerSearch: '',
+      filteredJobs: [],
+      filteredWorkers: [],
     };
 
-    // Inicializar la interfaz
-    this.initializeUI();
-
-    // Cargar datos existentes
-    await this.loadData();
-
-    // Configurar eventos
-    this.setupEventListeners();
-
-    // Mostrar mensaje de bienvenida
-    showNotification("¡Bienvenido a Work Tracker Pro!", "info");
-  }
-
-  initializeUI() {
-    console.log("Inicializando UI...");
-
-    // Formulario de trabajo
-    this.jobForm = document.getElementById("jobForm");
-    this.jobList = document.getElementById("jobList");
-    this.photoInput = document.getElementById("photoInput");
-    this.photoPreview = document.getElementById("photoPreview");
-
-    // Formulario de trabajador
-    this.workerForm = document.getElementById("workerForm");
-    this.workerList = document.getElementById("workerList");
-    this.workerPhotoInput = document.getElementById("workerPhotoInput");
-    this.workerPhotoPreview = document.getElementById("workerPhotoPreview");
-
-    // Resumen y estadísticas
-    this.summarySection = document.getElementById("summarySection");
-
-    // Configurar botones de voz
-    this.setupVoiceButtons();
-  }
-
-  setupVoiceButtons() {
-    console.log("Configurando botones de voz...");
-
-    // Lista de IDs y botones correspondientes
-    const voiceFields = [
-      { inputId: "titulo", label: "título" },
-      { inputId: "descripcion", label: "descripción" },
-      { inputId: "nombre", label: "nombre" },
-      { inputId: "especialidad", label: "especialidad" },
-      { inputId: "telefono", label: "teléfono" },
-      { inputId: "email", label: "email" },
-    ];
-
-    // Aplicar forzosamente los estilos a todos los botones de voz
-    const forceButtonStyles = () => {
-      document.querySelectorAll(".btn-voice").forEach((button) => {
-        console.log("Aplicando estilos al botón:", button);
-        button.style.backgroundColor = "#0d6efd";
-        button.style.color = "white";
-        button.style.border = "2px solid #0d6efd";
-        button.style.display = "flex";
-        button.style.alignItems = "center";
-        button.style.justifyContent = "center";
-        button.style.minWidth = "40px";
-        button.style.borderTopRightRadius = "0.25rem";
-        button.style.borderBottomRightRadius = "0.25rem";
-        button.style.zIndex = "100";
-        button.style.boxShadow = "0 2px 5px rgba(0, 0, 0, 0.2)";
-        button.style.position = "relative";
-
-        // Si es parte de un textarea, ajustar para cubrir toda la altura
-        const parentGroup = button.closest(".input-group");
-        if (parentGroup && parentGroup.querySelector("textarea")) {
-          button.style.alignSelf = "stretch";
-          button.style.height = "auto";
-        }
-      });
+    // Validadores de formulario
+    this.formValidators = {
+      job: null,
+      worker: null
     };
-
-    // Asegurarse de que los botones sean visibles inmediatamente
-    forceButtonStyles();
-
-    // Configurar eventos para cada botón
-    voiceFields.forEach((field) => {
-      const input = document.getElementById(field.inputId);
-      if (!input) {
-        console.warn(`Input con id ${field.inputId} no encontrado`);
-        return;
-      }
-
-      const button = input.parentElement?.querySelector(".btn-voice");
-      if (!button) {
-        console.warn(`Botón de voz para ${field.inputId} no encontrado`);
-        return;
-      }
-
-      // Configurar el evento click
-      button.onclick = () => {
-        console.log(`Iniciando reconocimiento de voz para ${field.inputId}`);
-        initVoiceRecognition(input);
-      };
-    });
-
-    // Aplicar los estilos nuevamente después de un tiempo para asegurar que se muestren
-    setTimeout(forceButtonStyles, 500);
-    setTimeout(forceButtonStyles, 1000);
-
-    console.log("Botones de voz configurados correctamente");
   }
 
-  async loadData() {
+  async initializeApp() {
     try {
-      console.log("Cargando datos...");
+      console.log("Inicializando aplicación...");
 
-      // Cargar trabajos y trabajadores usando los servicios
-      await jobService.loadJobs();
-      await workerService.loadWorkers();
+      // Inicializar servicios
+      await Promise.all([this.jobService.init(), this.workerService.init()]);
 
-      // Renderizar la interfaz
-      this.renderJobs();
-      this.renderWorkers();
-      this.updateWorkerSelect();
-      this.updateSummary();
+      // Configurar event listeners
+      this.setupEventListeners();
+
+      // Renderizar interfaz inicial
+      await this.renderInitialUI();
+
+      console.log("Aplicación inicializada correctamente");
     } catch (error) {
-      showNotification("Error al cargar los datos", "danger");
-      console.error("Error loading data:", error);
+      console.error("Error al inicializar:", error);
+      this.ui.showNotification("Error al inicializar la aplicación", "danger");
+      throw error;
     }
   }
 
-  updateWorkerSelect() {
-    const select = document.getElementById("trabajador");
-    if (!select) return;
-
-    select.innerHTML = '<option value="">Seleccionar trabajador...</option>';
-    workerService.workers.forEach((worker) => {
-      const option = document.createElement("option");
-      option.value = worker.id;
-      option.textContent = worker.name;
-      select.appendChild(option);
-    });
+  async renderInitialUI() {
+    await Promise.all([
+      this.renderJobs(),
+      this.renderWorkers(),
+      this.updateWorkerSelect(),
+      this.updateSummary(),
+    ]);
   }
 
   setupEventListeners() {
-    console.log("Configurando event listeners...");
+    // Event delegation para trabajos
+    const jobsContainer = document.querySelector("#jobList");
+    if (jobsContainer) {
+      jobsContainer.addEventListener("click", async (e) => {
+        const button = e.target.closest("button[data-job-id]");
+        if (!button) return;
 
-    // Eventos del formulario de trabajo
-    if (this.jobForm) {
-      this.jobForm.addEventListener("submit", (e) => this.handleJobSubmit(e));
-    }
-    if (this.photoInput) {
-      this.photoInput.addEventListener("change", (e) =>
-        this.handlePhotoSelect(e)
-      );
-    }
+        const jobId = button.dataset.jobId;
+        if (!jobId) return;
 
-    // Eventos del formulario de trabajador
-    if (this.workerForm) {
-      this.workerForm.addEventListener("submit", (e) =>
-        this.handleWorkerSubmit(e)
-      );
-    }
-    if (this.workerPhotoInput) {
-      this.workerPhotoInput.addEventListener("change", (e) =>
-        this.handleWorkerPhotoSelect(e)
-      );
-    }
-
-    // Botones de exportar
-    const btnExportarTrabajos = document.getElementById("btnExportarTrabajos");
-    if (btnExportarTrabajos) {
-      btnExportarTrabajos.addEventListener("click", () =>
-        this.exportarTrabajos()
-      );
+        try {
+          if (button.classList.contains("btn-info")) {
+            await this.showJobDetails(jobId);
+          } else if (button.classList.contains("btn-warning")) {
+            await this.editJob(jobId);
+          } else if (button.classList.contains("btn-danger")) {
+            await this.deleteJob(jobId);
+          }
+        } catch (error) {
+          console.error("Error en acción de trabajo:", error);
+          this.ui.showNotification("Error al procesar la acción", "danger");
+        }
+      });
     }
 
-    const btnExportarTrabajadores = document.getElementById(
-      "btnExportarTrabajadores"
-    );
-    if (btnExportarTrabajadores) {
-      btnExportarTrabajadores.addEventListener("click", () =>
-        this.exportarTrabajadores()
+    // Event delegation para trabajadores
+    const workersContainer = document.querySelector("#workerList");
+    if (workersContainer) {
+      workersContainer.addEventListener("click", async (e) => {
+        const button = e.target.closest("button[data-worker-id]");
+        if (!button) return;
+
+        const workerId = button.dataset.workerId;
+        if (!workerId) return;
+
+        try {
+          if (button.classList.contains("btn-info")) {
+            await this.showWorkerDetails(workerId);
+          } else if (button.classList.contains("btn-danger")) {
+            await this.deleteWorker(workerId);
+          }
+        } catch (error) {
+          console.error("Error en acción de trabajador:", error);
+          this.ui.showNotification("Error al procesar la acción", "danger");
+        }
+      });
+    }
+
+    // Configurar validadores de formulario
+    this.setupFormValidators();
+
+    // Formulario de trabajo
+    const jobForm = document.querySelector("#jobForm");
+    if (jobForm) {
+      jobForm.addEventListener("submit", this.handleJobSubmit.bind(this));
+    }
+
+    // Formulario de trabajador
+    const workerForm = document.querySelector("#workerForm");
+    if (workerForm) {
+      workerForm.addEventListener("submit", this.handleWorkerSubmit.bind(this));
+    }
+
+    // Búsqueda de trabajos
+    const jobSearchInput = document.querySelector("#jobSearchInput");
+    if (jobSearchInput) {
+      jobSearchInput.addEventListener("input", (e) => {
+        this.state.currentJobSearch = e.target.value;
+        this.searchAndFilterJobs();
+      });
+    }
+
+    // Filtro de estado de trabajos
+    const jobStatusFilter = document.querySelector("#jobStatusFilter");
+    if (jobStatusFilter) {
+      jobStatusFilter.addEventListener("change", (e) => {
+        this.state.currentJobStatusFilter = e.target.value;
+        this.searchAndFilterJobs();
+      });
+    }
+
+    // Búsqueda de trabajadores
+    const workerSearchInput = document.querySelector("#workerSearchInput");
+    if (workerSearchInput) {
+      workerSearchInput.addEventListener("input", (e) => {
+        this.state.currentWorkerSearch = e.target.value;
+        this.searchAndFilterWorkers();
+      });
+    }
+
+    // Limpiar filtros de trabajadores
+    const clearWorkerFilters = document.querySelector("#clearWorkerFilters");
+    if (clearWorkerFilters) {
+      clearWorkerFilters.addEventListener("click", () => {
+        this.clearWorkerFilters();
+      });
+    }
+  }
+
+  async showJobDetails(jobId) {
+    try {
+      const job = this.jobService.getJobById(jobId);
+      if (!job) {
+        this.ui.showNotification("Trabajo no encontrado", "warning");
+        return;
+      }
+
+      // Obtener información de trabajadores asignados
+      if (job.workerIds && job.workerIds.length > 0) {
+        job.workers = job.workerIds
+          .map((id) => this.workerService.getWorkerById(id))
+          .filter(Boolean);
+      }
+
+      this.ui.showJobDetailsModal(job);
+    } catch (error) {
+      console.error("Error al mostrar detalles:", error);
+      this.ui.showNotification(
+        "Error al mostrar detalles del trabajo",
+        "danger"
       );
+    }
+  }
+
+  async editJob(jobId) {
+    try {
+      const job = this.jobService.getJobById(jobId);
+      if (!job) {
+        this.ui.showNotification("Trabajo no encontrado", "warning");
+        return;
+      }
+
+      // Rellenar el formulario
+      const form = document.querySelector("#jobForm");
+      if (!form) return;
+
+      form.querySelector("#titulo").value = job.title;
+      form.querySelector("#descripcion").value = job.description;
+      form.querySelector("#fecha").value = job.date;
+      form.querySelector("#estado").value = job.status;
+
+      // Seleccionar trabajadores
+      const trabajadorSelect = document.querySelector("#trabajador");
+      if (trabajadorSelect) {
+        Array.from(trabajadorSelect.options).forEach((option) => {
+          option.selected = job.workerIds?.includes(option.value);
+        });
+      }
+
+      // Guardar ID del trabajo en edición
+      form.dataset.editingJobId = jobId;
+
+      // Cambiar texto del botón
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.textContent = "Actualizar Trabajo";
+      }
+
+      // Scroll al formulario
+      form.scrollIntoView({ behavior: "smooth" });
+    } catch (error) {
+      console.error("Error al editar:", error);
+      this.ui.showNotification(
+        "Error al cargar el trabajo para editar",
+        "danger"
+      );
+    }
+  }
+
+  async deleteJob(jobId) {
+    const job = this.jobService.getJobById(jobId);
+    if (!job) {
+      showNotification("Trabajo no encontrado", "warning");
+      return;
+    }
+
+    // Mostrar confirmación moderna
+    const confirmed = await ConfirmationModal.show({
+      title: 'Eliminar trabajo',
+      message: `¿Estás seguro de que deseas eliminar el trabajo "${job.title}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      // Mostrar loading en la lista de trabajos
+      loadingManager.show('#jobList', {
+        message: 'Eliminando trabajo...'
+      });
+
+      await this.jobService.deleteJob(jobId);
+
+      showNotification("Trabajo eliminado con éxito", "success");
+
+      // Actualizar UI
+      this.renderJobs();
+      this.updateSummary();
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+      showNotification(
+        error.message || "Error al eliminar el trabajo",
+        "danger"
+      );
+    } finally {
+      // Ocultar loading
+      loadingManager.hide('#jobList');
     }
   }
 
   async handleJobSubmit(e) {
     e.preventDefault();
-    const formData = new FormData(this.jobForm);
+    const form = e.target;
+    const formData = new FormData(form);
+    const jobId = form.dataset.editingJobId;
+    const submitBtn = form.querySelector('button[type="submit"]');
 
     try {
+      // Habilitar validación en tiempo real para futuras interacciones
+      if (this.formValidators.job) {
+        this.formValidators.job.toggleRealTimeValidation(true);
+      }
+
+      // Mostrar loading en el botón
+      this.setButtonLoading(submitBtn, true);
+
       const jobData = {
+        id: jobId || generateId(),
         title: formData.get("titulo"),
         description: formData.get("descripcion"),
         date: formData.get("fecha"),
         status: formData.get("estado"),
-        workerId: formData.get("trabajador"),
+        workerIds: Array.from(form.querySelector("#trabajador").selectedOptions)
+          .map((option) => option.value)
+          .filter(Boolean),
         images: this.state.fotosSeleccionadas,
+        createdAt: jobId ? undefined : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
-      await jobService.addJob(jobData);
+      // Validar datos del formulario
+      const validation = jobValidator.validate(jobData);
+      if (!validation.isValid) {
+        showNotification(
+          `Error de validación: ${validation.errorMessages.join(', ')}`,
+          'danger'
+        );
+        return;
+      }
+
+      // Verificar duplicados
+      await this.checkForDuplicates('job', jobData);
+
+      if (jobId) {
+        // Actualizar trabajo existente
+        await this.jobService.updateJob(jobData);
+        showNotification("Trabajo actualizado con éxito", "success");
+        FeedbackUtils.pulse(form);
+      } else {
+        // Crear nuevo trabajo
+        await this.jobService.addJob(jobData);
+        showNotification("Trabajo guardado con éxito", "success");
+        FeedbackUtils.highlight(form);
+      }
+
+      // Resetear formulario y validación
+      form.reset();
+      delete form.dataset.editingJobId;
+
+      // Limpiar validación visual
+      if (this.formValidators.job) {
+        this.formValidators.job.clearValidation();
+        this.formValidators.job.toggleRealTimeValidation(false);
+      }
+
+      // Resetear estado de fotos
+      this.state.fotosSeleccionadas = [];
+
+      // Actualizar UI
       this.renderJobs();
       this.updateSummary();
-      this.jobForm.reset();
-      this.clearPhotoPreview();
     } catch (error) {
+      console.error("Error al guardar:", error);
       showNotification(
         error.message || "Error al guardar el trabajo",
         "danger"
       );
-    }
-  }
-
-  async handleWorkerSubmit(e) {
-    e.preventDefault();
-    const formData = new FormData(this.workerForm);
-
-    try {
-      const workerData = {
-        name: formData.get("nombre"),
-        specialty: formData.get("especialidad"),
-        phone: formData.get("telefono"),
-        email: formData.get("email"),
-        photo: this.state.workerPhotoSelected,
-      };
-
-      await workerService.addWorker(workerData);
-      this.renderWorkers();
-      this.updateWorkerSelect();
-      this.workerForm.reset();
-      this.clearWorkerPhotoPreview();
-    } catch (error) {
-      showNotification(
-        error.message || "Error al guardar el trabajador",
-        "danger"
-      );
-    }
-  }
-
-  handlePhotoSelect(e) {
-    const files = Array.from(e.target.files);
-    this.state.fotosSeleccionadas = files;
-
-    // Mostrar vista previa
-    this.photoPreview.innerHTML = "";
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = document.createElement("img");
-        img.src = e.target.result;
-        img.className = "preview-img me-2 mb-2";
-        this.photoPreview.appendChild(img);
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  handleWorkerPhotoSelect(e) {
-    const file = e.target.files[0];
-    if (file) {
-      this.state.workerPhotoSelected = file;
-
-      // Mostrar vista previa
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        this.workerPhotoPreview.innerHTML = `
-                    <img src="${e.target.result}" class="worker-preview-img">
-                `;
-      };
-      reader.readAsDataURL(file);
+      FeedbackUtils.shake(form);
+    } finally {
+      // Ocultar loading del botón
+      this.setButtonLoading(submitBtn, false);
     }
   }
 
   renderJobs() {
-    if (!this.jobList) return;
+    const container = document.querySelector("#jobs-container");
+    if (!container) return;
 
-    this.jobList.innerHTML = jobService.jobs
+    const jobs = this.jobService.getAllJobs();
+    container.innerHTML = jobs
       .map(
         (job) => `
-        <div class="list-group-item list-group-item-action">
-          <div class="d-flex w-100 justify-content-between align-items-center">
-            <h5 class="mb-1">${job.title}</h5>
-            <span class="badge bg-${this.getStatusBadgeClass(job.status)}">${
-          job.status
-        }</span>
-          </div>
-          <p class="mb-1 text-truncate">${job.description}</p>
-          <div class="d-flex justify-content-between align-items-center">
-            <small class="text-muted">Fecha: ${this.formatDate(
-              job.date
-            )}</small>
-            <div>
-              <button class="btn btn-sm btn-info me-2" data-job-id="${
-                job.id
-              }" onclick="window.app.showJobDetails('${
-          job.id
-        }')" title="Ver detalles">
-                <i class="fas fa-eye"></i>
-              </button>
-              <button class="btn btn-sm btn-danger" data-job-id="${
-                job.id
-              }" onclick="window.app.deleteJob('${
-          job.id
-        }')" title="Eliminar trabajo">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
-          </div>
-          ${this.renderJobImages(job.images)}
-        </div>
-      `
-      )
-      .join("");
-  }
-
-  renderWorkers() {
-    if (!this.workerList) return;
-
-    this.workerList.innerHTML = workerService.workers
-      .map(
-        (worker) => `
-        <div class="list-group-item list-group-item-action">
-          <div class="d-flex w-100 justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-              ${
-                worker.photo
-                  ? `<img src="${worker.photo}" alt="${worker.name}" class="worker-avatar me-3">`
-                  : `<div class="worker-avatar-placeholder me-3">
-                      <i class="fas fa-user"></i>
-                     </div>`
-              }
-              <div>
-                <h5 class="mb-1">${worker.name}</h5>
-                <p class="mb-1">${worker.specialty}</p>
-              </div>
-            </div>
-            <div>
-              <button class="btn btn-sm btn-info me-2" data-worker-id="${
-                worker.id
-              }" onclick="window.app.showWorkerDetails('${
-          worker.id
-        }')" title="Ver detalles">
-                <i class="fas fa-eye"></i>
-              </button>
-              <button class="btn btn-sm btn-danger" data-worker-id="${
-                worker.id
-              }" onclick="window.app.deleteWorker('${
-          worker.id
-        }')" title="Eliminar trabajador">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-      `
-      )
-      .join("");
-  }
-
-  renderJobImages(images) {
-    if (!images || images.length === 0) return "";
-    return `
-      <div class="job-images mt-2">
-        ${Array.from(images)
-          .map((image) => {
-            const imgSrc =
-              typeof image === "string" ? image : URL.createObjectURL(image);
-            return `<img src="${imgSrc}" class="job-image me-2" alt="Foto del trabajo" onclick="window.app.showImageModal('${imgSrc}')">`;
-          })
-          .join("")}
-      </div>
-    `;
-  }
-
-  async showJobDetails(jobId) {
-    console.log("Mostrando detalles del trabajo:", jobId);
-    const job = await jobService.getJobById(jobId);
-    if (!job) return;
-
-    const worker = job.workerId
-      ? await workerService.getWorkerById(job.workerId)
-      : null;
-
-    const modalContent = document.getElementById("modalContent");
-    modalContent.innerHTML = `
-      <div class="job-details">
-        <h4>${job.title}</h4>
-        <p class="text-muted mb-4">${job.description}</p>
-        
-        <div class="info-item mb-3">
-          <strong>Estado:</strong>
+      <div class="list-group-item">
+        <div class="d-flex w-100 justify-content-between">
+          <h5 class="mb-1">${job.title}</h5>
           <span class="badge bg-${this.getStatusBadgeClass(job.status)}">${
-      job.status
-    }</span>
-        </div>
-        
-        <div class="info-item mb-3">
-          <strong>Fecha:</strong>
-          <span>${this.formatDate(job.date)}</span>
-        </div>
-        
-        ${
-          worker
-            ? `
-          <div class="info-item mb-3">
-            <strong>Trabajador Asignado:</strong>
-            <div class="d-flex align-items-center mt-2">
-              ${
-                worker.photo
-                  ? `<img src="${worker.photo}" alt="${worker.name}" class="worker-avatar me-3">`
-                  : `<div class="worker-avatar-placeholder me-3">
-                      <i class="fas fa-user"></i>
-                     </div>`
-              }
-              <div>
-                <h5 class="mb-1">${worker.name}</h5>
-                <p class="mb-0">${worker.specialty}</p>
-              </div>
-            </div>
-          </div>
-          `
-            : ""
-        }
-        
-        ${
-          job.images && job.images.length > 0
-            ? `
-          <div class="info-item mb-3">
-            <strong>Fotos:</strong>
-            <div class="fotos-trabajo mt-2">
-              ${this.renderJobImages(job.images)}
-            </div>
-          </div>
-          `
-            : ""
-        }
-      </div>
-    `;
-
-    const modal = new bootstrap.Modal(document.getElementById("detallesModal"));
-    modal.show();
-  }
-
-  async showWorkerDetails(workerId) {
-    console.log("Mostrando detalles del trabajador:", workerId);
-    const worker = await workerService.getWorkerById(workerId);
-    if (!worker) return;
-
-    const modalContent = document.getElementById("modalContent");
-    modalContent.innerHTML = `
-      <div class="worker-details">
-        <div class="d-flex align-items-center mb-4">
-          ${
-            worker.photo
-              ? `<img src="${worker.photo}" alt="${worker.name}" class="worker-preview-img me-4">`
-              : `<div class="worker-avatar-placeholder me-4" style="width: 150px; height: 150px;">
-                  <i class="fas fa-user"></i>
-                 </div>`
-          }
-          <div>
-            <h4>${worker.name}</h4>
-            <p class="text-muted mb-0">${worker.specialty}</p>
-          </div>
-        </div>
-        
-        ${
-          worker.phone
-            ? `
-          <div class="info-item mb-3">
-            <strong>Teléfono:</strong>
-            <p class="mb-0">${worker.phone}</p>
-          </div>
-          `
-            : ""
-        }
-        
-        ${
-          worker.email
-            ? `
-          <div class="info-item mb-3">
-            <strong>Email:</strong>
-            <p class="mb-0">${worker.email}</p>
-          </div>
-          `
-            : ""
-        }
-        
-        <div class="info-item mb-3">
-          <strong>Trabajos Asignados:</strong>
-          <div class="list-group mt-2">
-            ${this.getWorkerJobs(worker.id)}
-          </div>
-        </div>
-      </div>
-    `;
-
-    const modal = new bootstrap.Modal(document.getElementById("detallesModal"));
-    modal.show();
-  }
-
-  getWorkerJobs(workerId) {
-    const workerJobs = jobService.jobs.filter(
-      (job) => job.workerId === workerId
-    );
-    if (workerJobs.length === 0) {
-      return '<p class="text-muted">No hay trabajos asignados</p>';
-    }
-
-    return workerJobs
-      .map(
-        (job) => `
-        <div class="list-group-item">
-          <div class="d-flex w-100 justify-content-between">
-            <h6 class="mb-1">${job.title}</h6>
-            <span class="badge bg-${this.getStatusBadgeClass(job.status)}">${
           job.status
         }</span>
-          </div>
-          <p class="mb-1 text-truncate">${job.description}</p>
-          <small class="text-muted">Fecha: ${this.formatDate(job.date)}</small>
         </div>
-      `
+        <p class="mb-1">${job.description}</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <small class="text-muted">Fecha: ${new Date(
+            job.date
+          ).toLocaleDateString()}</small>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-info" data-job-id="${
+              job.id
+            }" title="Ver detalles">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button class="btn btn-sm btn-warning" data-job-id="${
+              job.id
+            }" title="Editar trabajo">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" data-job-id="${
+              job.id
+            }" title="Eliminar trabajo">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `
       )
       .join("");
-  }
-
-  async deleteJob(jobId) {
-    if (confirm("¿Estás seguro de que deseas eliminar este trabajo?")) {
-      try {
-        await jobService.deleteJob(jobId);
-        this.renderJobs();
-        this.updateSummary();
-        showNotification("Trabajo eliminado con éxito", "success");
-      } catch (error) {
-        showNotification(
-          error.message || "Error al eliminar el trabajo",
-          "danger"
-        );
-      }
-    }
-  }
-
-  async deleteWorker(workerId) {
-    if (confirm("¿Estás seguro de que deseas eliminar este trabajador?")) {
-      try {
-        await workerService.deleteWorker(workerId);
-        this.renderWorkers();
-        this.updateWorkerSelect();
-        this.updateSummary();
-        showNotification("Trabajador eliminado con éxito", "success");
-      } catch (error) {
-        showNotification(
-          error.message || "Error al eliminar el trabajador",
-          "danger"
-        );
-      }
-    }
   }
 
   getStatusBadgeClass(status) {
@@ -591,275 +439,648 @@ class WorkTrackerApp {
       Pendiente: "warning",
       "En Progreso": "info",
       Completado: "success",
-      // Valores antiguos (compatibilidad hacia atrás)
-      pending: "warning",
-      "in-progress": "info",
-      completed: "success",
     };
     return statusClasses[status] || "secondary";
   }
 
-  formatDate(date) {
-    return new Date(date).toLocaleDateString();
-  }
+  updateWorkerSelect() {
+    const select = document.querySelector("#trabajador");
+    if (!select) return;
 
-  showImageModal(imgSrc) {
-    const modalContent = document.getElementById("modalContent");
-    modalContent.innerHTML = `
-      <img src="${imgSrc}" class="img-fluid" alt="Foto del trabajo">
+    const workers = this.workerService.getAllWorkers();
+    select.innerHTML = `
+      <option value="">Seleccionar trabajador...</option>
+      ${workers
+        .map(
+          (worker) => `
+        <option value="${worker.id}">${worker.name}</option>
+      `
+        )
+        .join("")}
     `;
-    const modal = new bootstrap.Modal(document.getElementById("detallesModal"));
-    modal.show();
   }
 
   updateSummary() {
-    if (!this.summarySection) return;
+    const summarySection = document.querySelector("#summarySection");
+    if (!summarySection) return;
 
-    const totalJobs = jobService.jobs.length;
-    const completedJobs = jobService.jobs.filter(
-      (job) => job.status === "Completado" || job.status === "completed"
-    ).length;
-    const totalWorkers = workerService.workers.length;
-    const assignedWorkers = new Set(
-      jobService.jobs.map((job) => job.workerId).filter(Boolean)
-    ).size;
+    const jobStats = this.jobService.getJobStats();
+    const workerStats = this.workerService.getWorkerStats();
 
-    this.summarySection.innerHTML = `
+    summarySection.innerHTML = `
       <div class="row">
         <div class="col-md-3 col-sm-6">
           <div class="stat-card">
-            <h3>${totalJobs}</h3>
+            <h3>${jobStats.total}</h3>
             <p>Trabajos Totales</p>
           </div>
         </div>
         <div class="col-md-3 col-sm-6">
           <div class="stat-card">
-            <h3>${completedJobs}</h3>
+            <h3>${jobStats.completed}</h3>
             <p>Trabajos Completados</p>
           </div>
         </div>
         <div class="col-md-3 col-sm-6">
           <div class="stat-card">
-            <h3>${totalWorkers}</h3>
+            <h3>${workerStats.total}</h3>
             <p>Trabajadores</p>
           </div>
         </div>
         <div class="col-md-3 col-sm-6">
           <div class="stat-card">
-            <h3>${assignedWorkers}</h3>
-            <p>Trabajadores Asignados</p>
+            <h3>${workerStats.totalHours}</h3>
+            <p>Horas Totales</p>
           </div>
         </div>
       </div>
     `;
   }
 
-  exportarTrabajos() {
+  async showWorkerDetails(workerId) {
     try {
-      const trabajosJSON = JSON.stringify(jobService.jobs, null, 2);
-      const blob = new Blob([trabajosJSON], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `trabajos_${new Date().toISOString().split("T")[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-
-      // Limpiar
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-
-      showNotification("Datos de trabajos exportados correctamente", "success");
+      const worker = this.workerService.getWorkerById(workerId);
+      if (worker) {
+        // Obtener trabajos asignados al trabajador
+        worker.jobs = this.jobService.getWorkerJobs(workerId);
+        this.ui.showWorkerDetailsModal(worker);
+      } else {
+        this.ui.showNotification("Trabajador no encontrado", "warning");
+      }
     } catch (error) {
-      showNotification("Error al exportar los datos de trabajos", "danger");
-      console.error("Error exportando trabajos:", error);
-    }
-  }
-
-  exportarTrabajadores() {
-    try {
-      const trabajadoresJSON = JSON.stringify(workerService.workers, null, 2);
-      const blob = new Blob([trabajadoresJSON], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `trabajadores_${
-        new Date().toISOString().split("T")[0]
-      }.json`;
-      document.body.appendChild(a);
-      a.click();
-
-      // Limpiar
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-
-      showNotification(
-        "Datos de trabajadores exportados correctamente",
-        "success"
+      console.error("Error showing worker details:", error);
+      this.ui.showNotification(
+        "Error al mostrar detalles del trabajador",
+        "danger"
       );
-    } catch (error) {
-      showNotification("Error al exportar los datos de trabajadores", "danger");
-      console.error("Error exportando trabajadores:", error);
     }
   }
 
-  clearPhotoPreview() {
-    this.photoPreview.innerHTML = "";
-    this.state.fotosSeleccionadas = [];
-  }
+  async deleteWorker(workerId) {
+    const worker = this.workerService.getWorkerById(workerId);
+    if (!worker) {
+      showNotification("Trabajador no encontrado", "warning");
+      return;
+    }
 
-  clearWorkerPhotoPreview() {
-    this.workerPhotoPreview.innerHTML = "";
-    this.state.workerPhotoSelected = null;
-  }
+    // Verificar si el trabajador tiene trabajos asignados
+    const assignedJobs = this.jobService.getAllJobs().filter(job =>
+      job.workerIds && job.workerIds.includes(workerId)
+    );
 
-  // Exponer la función de reconocimiento de voz para ser accesible desde HTML
-  initVoiceRecognition(inputElement) {
-    return initVoiceRecognition(inputElement);
-  }
+    let message = `¿Estás seguro de que deseas eliminar al trabajador "${worker.name}"?`;
+    if (assignedJobs.length > 0) {
+      message += ` Este trabajador tiene ${assignedJobs.length} trabajo(s) asignado(s).`;
+    }
+    message += ' Esta acción no se puede deshacer.';
 
-  async resetApp() {
-    console.log("Reiniciando la aplicación...");
-    showNotification("Reiniciando la aplicación...", "info");
+    // Mostrar confirmación moderna
+    const confirmed = await ConfirmationModal.show({
+      title: 'Eliminar trabajador',
+      message,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger'
+    });
+
+    if (!confirmed) return;
 
     try {
-      // Mostrar indicador de carga
-      document.body.classList.add("loading");
+      // Mostrar loading en la lista de trabajadores
+      loadingManager.show('#workerList', {
+        message: 'Eliminando trabajador...'
+      });
 
-      // Limpiar el estado actual
-      this.state = {
-        fotosSeleccionadas: [],
-        workerPhotoSelected: null,
+      await this.workerService.deleteWorker(workerId);
+
+      showNotification("Trabajador eliminado exitosamente", "success");
+
+      // Actualizar UI
+      this.renderWorkers();
+      this.updateWorkerSelect();
+      this.updateSummary();
+    } catch (error) {
+      console.error("Error deleting worker:", error);
+      showNotification(
+        error.message || "Error al eliminar el trabajador",
+        "danger"
+      );
+    } finally {
+      // Ocultar loading
+      loadingManager.hide('#workerList');
+    }
+  }
+
+  async handleWorkerSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    try {
+      // Habilitar validación en tiempo real para futuras interacciones
+      if (this.formValidators.worker) {
+        this.formValidators.worker.toggleRealTimeValidation(true);
+      }
+
+      // Mostrar loading en el botón
+      this.setButtonLoading(submitBtn, true);
+
+      const workerData = {
+        id: generateId(),
+        name: formData.get("nombre"),
+        specialty: formData.get("especialidad"),
+        phone: formData.get("telefono") || '',
+        email: formData.get("email") || '',
+        profileImage: this.state.workerPhotoSelected,
+        createdAt: new Date().toISOString(),
       };
 
-      // Limpiar las vistas
-      this.clearPhotoPreview();
-      this.clearWorkerPhotoPreview();
+      // Validar datos del formulario
+      const validation = workerValidator.validate(workerData);
+      if (!validation.isValid) {
+        showNotification(
+          `Error de validación: ${validation.errorMessages.join(', ')}`,
+          'danger'
+        );
+        return;
+      }
 
-      if (this.jobList) this.jobList.innerHTML = "";
-      if (this.workerList) this.workerList.innerHTML = "";
-      if (this.summarySection) this.summarySection.innerHTML = "";
+      // Verificar duplicados
+      await this.checkForDuplicates('worker', workerData);
 
-      // Resetear formularios
-      if (this.jobForm) this.jobForm.reset();
-      if (this.workerForm) this.workerForm.reset();
+      await this.workerService.addWorker(workerData);
+      showNotification("Trabajador guardado con éxito", "success");
 
-      // Reiniciar la base de datos
-      await storageService.resetDatabase();
+      // Feedback visual positivo
+      FeedbackUtils.highlight(form);
 
-      // Restablecer los servicios
-      await jobService.reset();
-      await workerService.reset();
+      // Resetear formulario y estado
+      form.reset();
+      this.state.workerPhotoSelected = null;
 
-      // Recargar los datos de los servicios
-      await jobService.loadJobs();
-      await workerService.loadWorkers();
+      // Limpiar validación visual
+      if (this.formValidators.worker) {
+        this.formValidators.worker.clearValidation();
+        this.formValidators.worker.toggleRealTimeValidation(false);
+      }
 
-      // Refrescar la interfaz
-      this.renderJobs();
+      // Actualizar UI
       this.renderWorkers();
+      this.updateWorkerSelect();
       this.updateSummary();
-
-      // Quitar indicador de carga
-      document.body.classList.remove("loading");
-
-      showNotification("¡Aplicación reiniciada con éxito!", "success");
     } catch (error) {
-      // Quitar indicador de carga en caso de error
-      document.body.classList.remove("loading");
-
-      console.error("Error al reiniciar la aplicación:", error);
-      showNotification("Error al reiniciar la aplicación", "danger");
+      console.error("Error al guardar trabajador:", error);
+      showNotification(
+        error.message || "Error al guardar el trabajador",
+        "danger"
+      );
+      FeedbackUtils.shake(form);
+    } finally {
+      // Ocultar loading del botón
+      this.setButtonLoading(submitBtn, false);
     }
+  }
+
+  renderWorkers() {
+    const container = document.querySelector("#workers-container");
+    if (!container) return;
+
+    const workers = this.workerService.getAllWorkers();
+    container.innerHTML = workers
+      .map(
+        (worker) => `
+      <div class="list-group-item">
+        <div class="d-flex w-100 justify-content-between align-items-center">
+          <div class="d-flex align-items-center">
+            ${
+              worker.profileImage
+                ? `<img src="${worker.profileImage}" alt="${worker.name}" class="worker-avatar me-3">`
+                : '<div class="worker-avatar-placeholder me-3"><i class="fas fa-user"></i></div>'
+            }
+            <div>
+              <h5 class="mb-1">${worker.name}</h5>
+              <p class="mb-1">${worker.specialty}</p>
+              <small class="text-muted">
+                ${
+                  worker.email
+                    ? `<i class="fas fa-envelope me-1"></i>${worker.email}`
+                    : ""
+                }
+                ${
+                  worker.phone
+                    ? `<i class="fas fa-phone ms-2 me-1"></i>${worker.phone}`
+                    : ""
+                }
+              </small>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-info" data-worker-id="${
+              worker.id
+            }" title="Ver detalles">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" data-worker-id="${
+              worker.id
+            }" title="Eliminar trabajador">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+      )
+      .join("");
+  }
+
+  // Métodos de búsqueda y filtrado
+  searchAndFilterJobs() {
+    searchService.searchWithDebounce(() => {
+      const allJobs = this.jobService.getAllJobs();
+
+      // Añadir información de trabajadores a cada trabajo
+      const jobsWithWorkers = allJobs.map(job => ({
+        ...job,
+        workers: job.workerIds
+          ? job.workerIds.map(id => this.workerService.getWorkerById(id)).filter(Boolean)
+          : []
+      }));
+
+      this.state.filteredJobs = searchService.searchJobs(
+        jobsWithWorkers,
+        this.state.currentJobSearch,
+        this.state.currentJobStatusFilter
+      );
+
+      this.renderFilteredJobs();
+      this.updateJobSearchStats();
+    });
+  }
+
+  searchAndFilterWorkers() {
+    searchService.searchWithDebounce(() => {
+      const allWorkers = this.workerService.getAllWorkers();
+
+      this.state.filteredWorkers = searchService.searchWorkers(
+        allWorkers,
+        this.state.currentWorkerSearch
+      );
+
+      this.renderFilteredWorkers();
+      this.updateWorkerSearchStats();
+    });
+  }
+
+  renderFilteredJobs() {
+    const container = document.querySelector("#jobList");
+    if (!container) return;
+
+    if (this.state.filteredJobs.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-search fa-2x mb-2"></i>
+          <p>No se encontraron trabajos que coincidan con tu búsqueda</p>
+          ${this.state.currentJobSearch || this.state.currentJobStatusFilter
+            ? '<small>Intenta modificar los filtros de búsqueda</small>'
+            : '<small>Añade tu primer trabajo usando el formulario de arriba</small>'
+          }
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = this.state.filteredJobs
+      .map(job => {
+        let title = job.title;
+        let description = job.description;
+
+        // Destacar coincidencias en la búsqueda
+        if (this.state.currentJobSearch) {
+          title = searchService.highlightMatch(title, this.state.currentJobSearch);
+          description = searchService.highlightMatch(description, this.state.currentJobSearch);
+        }
+
+        return `
+          <div class="list-group-item">
+            <div class="d-flex w-100 justify-content-between">
+              <h5 class="mb-1">${title}</h5>
+              <span class="badge bg-${this.getStatusBadgeClass(job.status)}">${job.status}</span>
+            </div>
+            <p class="mb-1">${description}</p>
+            ${job.workers && job.workers.length > 0
+              ? `<small class="text-info">
+                  <i class="fas fa-users me-1"></i>
+                  ${job.workers.map(w => w.name).join(', ')}
+                 </small>`
+              : ''
+            }
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <small class="text-muted">Fecha: ${new Date(job.date).toLocaleDateString()}</small>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-info" data-job-id="${job.id}" title="Ver detalles">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-warning" data-job-id="${job.id}" title="Editar trabajo">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" data-job-id="${job.id}" title="Eliminar trabajo">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  renderFilteredWorkers() {
+    const container = document.querySelector("#workerList");
+    if (!container) return;
+
+    if (this.state.filteredWorkers.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-search fa-2x mb-2"></i>
+          <p>No se encontraron trabajadores que coincidan con tu búsqueda</p>
+          ${this.state.currentWorkerSearch
+            ? '<small>Intenta modificar el término de búsqueda</small>'
+            : '<small>Añade tu primer trabajador usando el formulario de arriba</small>'
+          }
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = this.state.filteredWorkers
+      .map(worker => {
+        let name = worker.name;
+        let specialty = worker.specialty;
+
+        // Destacar coincidencias en la búsqueda
+        if (this.state.currentWorkerSearch) {
+          name = searchService.highlightMatch(name, this.state.currentWorkerSearch);
+          specialty = searchService.highlightMatch(specialty, this.state.currentWorkerSearch);
+        }
+
+        return `
+          <div class="list-group-item">
+            <div class="d-flex w-100 justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                ${worker.profileImage
+                  ? `<img src="${worker.profileImage}" alt="${worker.name}" class="worker-avatar me-3">`
+                  : '<div class="worker-avatar-placeholder me-3"><i class="fas fa-user"></i></div>'
+                }
+                <div>
+                  <h5 class="mb-1">${name}</h5>
+                  <p class="mb-1">${specialty}</p>
+                  <small class="text-muted">
+                    ${worker.email
+                      ? `<i class="fas fa-envelope me-1"></i>${worker.email}`
+                      : ""
+                    }
+                    ${worker.phone
+                      ? `<i class="fas fa-phone ms-2 me-1"></i>${worker.phone}`
+                      : ""
+                    }
+                  </small>
+                </div>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-info" data-worker-id="${worker.id}" title="Ver detalles">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" data-worker-id="${worker.id}" title="Eliminar trabajador">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  updateJobSearchStats() {
+    // Opcional: mostrar estadísticas de búsqueda
+    const allJobs = this.jobService.getAllJobs();
+    const stats = searchService.getSearchStats(
+      allJobs.length,
+      this.state.filteredJobs.length,
+      this.state.currentJobSearch
+    );
+
+    console.log('Job search stats:', stats);
+  }
+
+  updateWorkerSearchStats() {
+    // Opcional: mostrar estadísticas de búsqueda
+    const allWorkers = this.workerService.getAllWorkers();
+    const stats = searchService.getSearchStats(
+      allWorkers.length,
+      this.state.filteredWorkers.length,
+      this.state.currentWorkerSearch
+    );
+
+    console.log('Worker search stats:', stats);
+  }
+
+  clearWorkerFilters() {
+    this.state.currentWorkerSearch = '';
+    const searchInput = document.querySelector("#workerSearchInput");
+    if (searchInput) {
+      searchInput.value = '';
+    }
+    this.searchAndFilterWorkers();
+  }
+
+  // Actualizar el método renderJobs para usar el sistema de filtros
+  renderJobs() {
+    // Inicializar búsqueda si no hay filtros activos
+    if (!this.state.currentJobSearch && !this.state.currentJobStatusFilter) {
+      this.state.filteredJobs = this.jobService.getAllJobs();
+    }
+    this.renderFilteredJobs();
+  }
+
+  // Actualizar el método renderWorkers para usar el sistema de filtros
+  renderWorkers() {
+    // Inicializar búsqueda si no hay filtros activos
+    if (!this.state.currentWorkerSearch) {
+      this.state.filteredWorkers = this.workerService.getAllWorkers();
+    }
+    this.renderFilteredWorkers();
+  }
+
+  // Configurar validadores de formulario
+  setupFormValidators() {
+    const jobForm = document.querySelector("#jobForm");
+    const workerForm = document.querySelector("#workerForm");
+
+    if (jobForm) {
+      this.formValidators.job = new FormValidator(jobForm, jobValidator);
+      // Desactivar validación en tiempo real inicial
+      this.formValidators.job.toggleRealTimeValidation(false);
+    }
+
+    if (workerForm) {
+      this.formValidators.worker = new FormValidator(workerForm, workerValidator);
+      // Desactivar validación en tiempo real inicial
+      this.formValidators.worker.toggleRealTimeValidation(false);
+    }
+  }
+
+  // Manejar errores de duplicados
+  async checkForDuplicates(type, data) {
+    if (type === 'job') {
+      const jobs = this.jobService.getAllJobs();
+      const duplicateTitle = jobs.find(job =>
+        job.title.toLowerCase() === data.title.toLowerCase() &&
+        job.id !== data.id
+      );
+
+      if (duplicateTitle) {
+        throw new Error('Ya existe un trabajo con este título');
+      }
+    } else if (type === 'worker') {
+      const workers = this.workerService.getAllWorkers();
+
+      // Verificar nombre duplicado
+      const duplicateName = workers.find(worker =>
+        worker.name.toLowerCase() === data.name.toLowerCase() &&
+        worker.id !== data.id
+      );
+
+      if (duplicateName) {
+        throw new Error('Ya existe un trabajador con este nombre');
+      }
+
+      // Verificar email duplicado (si se proporciona)
+      if (data.email) {
+        const duplicateEmail = workers.find(worker =>
+          worker.email &&
+          worker.email.toLowerCase() === data.email.toLowerCase() &&
+          worker.id !== data.id
+        );
+
+        if (duplicateEmail) {
+          throw new Error('Ya existe un trabajador con este email');
+        }
+      }
+
+      // Verificar teléfono duplicado (si se proporciona)
+      if (data.phone) {
+        const duplicatePhone = workers.find(worker =>
+          worker.phone &&
+          worker.phone === data.phone &&
+          worker.id !== data.id
+        );
+
+        if (duplicatePhone) {
+          throw new Error('Ya existe un trabajador con este teléfono');
+        }
+      }
+    }
+  }
+
+  // Métodos para loading states
+  setButtonLoading(button, isLoading) {
+    if (!button) return;
+
+    if (isLoading) {
+      // Guardar texto original si no está guardado
+      if (!button.dataset.originalText) {
+        button.dataset.originalText = button.innerHTML;
+      }
+
+      button.disabled = true;
+      button.classList.add('btn-loading');
+      button.innerHTML = `
+        <span class="btn-text">${button.dataset.originalText}</span>
+      `;
+    } else {
+      button.disabled = false;
+      button.classList.remove('btn-loading');
+      if (button.dataset.originalText) {
+        button.innerHTML = button.dataset.originalText;
+      }
+    }
+  }
+
+  showSkeletonLoaders(container, type = 'job', count = 3) {
+    if (!container) return;
+
+    const skeletons = [];
+    for (let i = 0; i < count; i++) {
+      if (type === 'job') {
+        skeletons.push(SkeletonLoader.createJobCard());
+      } else if (type === 'worker') {
+        skeletons.push(SkeletonLoader.createWorkerCard());
+      }
+    }
+
+    container.innerHTML = '';
+    skeletons.forEach(skeleton => container.appendChild(skeleton));
+  }
+
+  // Mejorar el método renderJobs con skeleton loading
+  async renderJobs() {
+    const container = document.querySelector("#jobList");
+    if (!container) return;
+
+    // Si no hay datos filtrados todavía, mostrar skeleton
+    if (this.state.filteredJobs.length === 0 && this.jobService.getAllJobs().length === 0) {
+      this.showSkeletonLoaders(container, 'job', 2);
+      return;
+    }
+
+    this.renderFilteredJobs();
+  }
+
+  // Mejorar el método renderWorkers con skeleton loading
+  async renderWorkers() {
+    const container = document.querySelector("#workerList");
+    if (!container) return;
+
+    // Si no hay datos filtrados todavía, mostrar skeleton
+    if (this.state.filteredWorkers.length === 0 && this.workerService.getAllWorkers().length === 0) {
+      this.showSkeletonLoaders(container, 'worker', 2);
+      return;
+    }
+
+    this.renderFilteredWorkers();
   }
 }
 
 // Inicializar la aplicación cuando el DOM esté listo
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM completamente cargado, inicializando aplicación...");
-
-  // Agregar un evento para el botón de reinicio si existe
-  const resetButton = document.getElementById("resetAppButton");
-  if (resetButton) {
-    resetButton.addEventListener("click", () => {
-      if (window.app) {
-        // Mostrar confirmación antes de reiniciar
-        if (
-          confirm(
-            "¿Estás seguro de que deseas reiniciar la aplicación? Todos los datos serán eliminados."
-          )
-        ) {
-          window.app.resetApp();
-        }
-      }
-    });
-  }
-
-  // Función para forzar los estilos de los botones de micrófono
-  const forceVoiceButtonStyles = () => {
-    console.log("Aplicando estilos forzados a los botones de micrófono...");
-    document.querySelectorAll(".btn-voice").forEach((button) => {
-      console.log("Botón encontrado:", button);
-      // Aplicar estilos inline directamente
-      Object.assign(button.style, {
-        backgroundColor: "#0d6efd",
-        color: "white",
-        border: "2px solid #0d6efd",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: "40px",
-        borderTopRightRadius: "0.25rem",
-        borderBottomRightRadius: "0.25rem",
-        zIndex: "100",
-        boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
-        position: "relative",
-      });
-
-      // Si es parte de un textarea, ajustar para cubrir toda la altura
-      const parentGroup = button.closest(".input-group");
-      if (parentGroup && parentGroup.querySelector("textarea")) {
-        button.style.alignSelf = "stretch";
-        button.style.height = "auto";
-      }
-
-      // Asegurar que el ícono sea visible
-      const icon = button.querySelector(".fa-microphone");
-      if (icon) {
-        icon.style.color = "white";
-      }
-
-      // Configurar el evento directamente
-      button.onclick = function () {
-        const input = this.previousElementSibling;
-        if (input && typeof initVoiceRecognition === "function") {
-          console.log(
-            `Activando reconocimiento de voz para ${input.id || "input"}`
-          );
-          initVoiceRecognition(input);
-        } else {
-          console.error("No se puede activar el reconocimiento de voz");
-        }
-      };
-    });
-  };
-
-  // Inicializar la aplicación
+document.addEventListener("DOMContentLoaded", async () => {
   try {
+    // Crear e inicializar la aplicación
     window.app = new WorkTrackerApp();
+    await window.app.initializeApp();
+
+    console.log("Aplicación inicializada correctamente");
+
+    // Configurar event listeners para los botones de micrófono
+    const voiceButtons = document.querySelectorAll(".btn-voice");
+    voiceButtons.forEach((button) => {
+      const inputElement = button.previousElementSibling;
+      if (inputElement) {
+        button.addEventListener("click", () =>
+          initVoiceRecognition(inputElement)
+        );
+      }
+    });
   } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
+    const container = document.querySelector("#notification-container");
+    if (container) {
+      container.innerHTML = `
+        <div class="alert alert-danger">
+          Error al inicializar la aplicación
+        </div>
+      `;
+    }
   }
-
-  // Aplicar estilos a los botones de voz en varios momentos para garantizar que se muestren
-  forceVoiceButtonStyles();
-  setTimeout(forceVoiceButtonStyles, 500);
-  setTimeout(forceVoiceButtonStyles, 1000);
-  setTimeout(forceVoiceButtonStyles, 2000);
 });
