@@ -447,7 +447,22 @@ class WorkTrackerApp {
     const select = document.querySelector("#trabajador");
     if (!select) return;
 
+    // Verificar que el servicio esté inicializado
+    if (!this.workerService || typeof this.workerService.getAllWorkers !== 'function') {
+      console.warn('WorkerService no está inicializado correctamente');
+      select.innerHTML = '<option value="">Seleccionar trabajador...</option>';
+      return;
+    }
+
     const workers = this.workerService.getAllWorkers();
+
+    // Validar que workers sea un array
+    if (!Array.isArray(workers)) {
+      console.warn('Workers no es un array:', workers);
+      select.innerHTML = '<option value="">Seleccionar trabajador...</option>';
+      return;
+    }
+
     select.innerHTML = `
       <option value="">Seleccionar trabajador...</option>
       ${workers

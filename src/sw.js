@@ -1,54 +1,125 @@
-const CACHE_NAME = "work-tracker-v1";
-const BASE_PATH = "/work-tracker-pro";
+const CACHE_NAME = "work-tracker-pro-v1.0.0";
 
 const urlsToCache = [
-  `${BASE_PATH}/`,
-  `${BASE_PATH}/index.html`,
-  `${BASE_PATH}/manifest.json`,
-  `${BASE_PATH}/assets/icons/icon-72x72.png`,
-  `${BASE_PATH}/assets/icons/icon-96x96.png`,
-  `${BASE_PATH}/assets/icons/icon-128x128.png`,
-  `${BASE_PATH}/assets/icons/icon-144x144.png`,
-  `${BASE_PATH}/assets/icons/icon-152x152.png`,
-  `${BASE_PATH}/assets/icons/icon-192x192.png`,
-  `${BASE_PATH}/assets/icons/icon-384x384.png`,
-  `${BASE_PATH}/assets/icons/icon-512x512.png`,
+  "/",
+  "/index.html",
+  "/manifest.json",
+  "/css/style.css",
+  "/css/styles.css",
+  "/js/app.js",
+  "/js/ui.js",
+  "/js/voice.js",
+  "/js/storage.js",
+  "/js/services/job.service.js",
+  "/js/services/worker.service.js",
+  "/js/utils/backup.js",
+  "/js/utils/helpers.js",
+  "/js/utils/loading.js",
+  "/js/utils/notifications.js",
+  "/js/utils/search.js",
+  "/js/utils/validator.js",
+  "/js/utils/indexedDB.js",
+  "/assets/icons/icon-72x72.png",
+  "/assets/icons/icon-96x96.png",
+  "/assets/icons/icon-128x128.png",
+  "/assets/icons/icon-144x144.png",
+  "/assets/icons/icon-152x152.png",
+  "/assets/icons/icon-192x192.png",
+  "/assets/icons/icon-384x384.png",
+  "/assets/icons/icon-512x512.png",
 ];
 
 // Instalación del Service Worker
 self.addEventListener("install", (event) => {
+  console.log("Service Worker: Instalando...");
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log("Opened cache");
-      return cache.addAll(urlsToCache);
+      console.log("Service Worker: Cache abierto");
+      return cache.addAll(urlsToCache).catch((error) => {
+        console.error("Error al cachear archivos:", error);
+        // Continuar instalación aunque algunos archivos fallen
+        return Promise.resolve();
+      });
     })
   );
+
+  // Forzar activación inmediata
+  self.skipWaiting();
 });
 
 // Activación del Service Worker
 self.addEventListener("activate", (event) => {
+  console.log("Service Worker: Activando...");
+
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log("Eliminando caché antiguo:", cacheName);
+            console.log("Service Worker: Eliminando caché antiguo:", cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
+
+  // Tomar control inmediato de todas las páginas
+  self.clients.claim();
 });
 
-// Estrategia de caché: Network First, fallback to Cache
+// Estrategia de caché: Cache First para recursos estáticos, Network First para datos
 self.addEventListener("fetch", (event) => {
+  // Ignorar requests no GET
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // Ignorar extensiones del navegador
+  if (event.request.url.startsWith('chrome-extension://') ||
+      event.request.url.startsWith('moz-extension://')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => {
+      // Si está en cache, devolverlo
       if (response) {
+        console.log('Service Worker: Sirviendo desde cache:', event.request.url);
         return response;
       }
-      return fetch(event.request);
+
+      // Si no está en cache, hacer fetch
+      return fetch(event.request).then((response) => {
+        // Verificar respuesta válida
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+
+        // Clonar respuesta para cache
+        const responseToCache = response.clone();
+
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+
+        return response;
+      }).catch((error) => {
+        console.error('Service Worker: Error en fetch:', error);
+
+        // Para navegación, devolver página offline si existe
+        if (event.request.destination === 'document') {
+          return caches.match('/offline.html').then((offlineResponse) => {
+            return offlineResponse || new Response(
+              '<!DOCTYPE html><html><head><title>Sin conexión</title></head><body><h1>Sin conexión</h1><p>La aplicación no está disponible sin conexión.</p></body></html>',
+              { headers: { 'Content-Type': 'text/html' } }
+            );
+          });
+        }
+
+        throw error;
+      });
     })
   );
 });
