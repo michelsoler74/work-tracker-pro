@@ -1,3 +1,5 @@
+import { copyFileSync } from 'fs';
+
 export default {
   base: "/",
   server: {
@@ -12,10 +14,17 @@ export default {
     rollupOptions: {
       input: {
         main: "src/index.html",
-        sw: "src/sw.js",
       },
     },
   },
   root: "src",
   publicDir: "public",
+  plugins: [
+    {
+      name: 'copy-sw',
+      writeBundle() {
+        copyFileSync('./src/js/sw.js', './dist/sw.js');
+      }
+    }
+  ],
 };

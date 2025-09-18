@@ -168,7 +168,23 @@ export class WorkerService {
     return this.workers.find((worker) => worker.id === workerId);
   }
 
-  getWorkerStats() {
+  async getWorkerStats() {
+    // Asegurar que el servicio esté completamente inicializado
+    if (!this.initialized) {
+      await this.init();
+    }
+
+    // Validar que workers sea un array
+    if (!Array.isArray(this.workers)) {
+      console.warn('Workers no es un array:', this.workers);
+      return {
+        totalWorkers: 0,
+        totalHours: 0,
+        averageHours: 0,
+        topWorker: null
+      };
+    }
+
     const totalWorkers = this.workers.length;
     const totalHours = this.workers.reduce(
       (sum, worker) => sum + (Number(worker.hours) || 0),

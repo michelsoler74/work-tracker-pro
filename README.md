@@ -1,31 +1,68 @@
-# WorkTracker Pro 2.0
+# Work Tracker Pro 2.0
 
-Sistema de Gestión Inteligente de Proyectos y Personal
+**Sistema de Gestión Inteligente de Trabajos y Personal**
 
-## 🌟 Características
+Una aplicación web progresiva (PWA) moderna para la gestión eficiente de trabajos, proyectos y personal.
 
-- ✅ Registro detallado de trabajos con imágenes y asignación de personal
-- 👥 Gestión completa de trabajadores y sus perfiles
-- 📊 Dashboard con resumen de actividades
-- 🎤 Reconocimiento de voz para entrada de datos
-- 💾 Almacenamiento local con IndexedDB
-- 📱 Diseño responsive para todos los dispositivos
-- 🔄 Funcionamiento offline con tecnología PWA
-- 🖥️ Versión de escritorio con Electron
+## 🌟 Características Principales
 
-## 🚀 Instalación en PC
+- ✅ **Gestión de Trabajos**: Registro detallado con fotos, fechas y asignación de personal
+- 👥 **Gestión de Trabajadores**: Perfiles completos con información de contacto y fotos
+- 📊 **Dashboard Inteligente**: Resumen visual de estadísticas y progreso
+- 💾 **Almacenamiento Local**: Base de datos IndexedDB para funcionamiento offline
+- 📱 **Diseño Responsive**: Optimizado para desktop, tablet y móvil
+- 🔄 **PWA Completa**: Instalación en dispositivos y funcionamiento offline
+- 🔍 **Búsqueda Avanzada**: Filtros y búsqueda en tiempo real
+- 🎨 **UI/UX Moderna**: Interfaz intuitiva con Bootstrap 5
 
-### Opción 1: Instalación desde código fuente
+## 🏗️ Arquitectura del Proyecto
+
+```
+work-tracker-pro-2/
+├── src/                           # Código fuente principal
+│   ├── index.html                # Página principal
+│   ├── css/                      # Estilos CSS
+│   │   └── style.css            # Estilos principales
+│   ├── js/                      # Código JavaScript
+│   │   ├── app.js              # Aplicación principal
+│   │   ├── services/           # Servicios de negocio
+│   │   │   ├── job.service.js  # Gestión de trabajos
+│   │   │   └── worker.service.js # Gestión de trabajadores
+│   │   ├── utils/              # Utilidades
+│   │   │   ├── helpers.js      # Funciones auxiliares
+│   │   │   ├── indexedDB.js    # Gestión de base de datos
+│   │   │   ├── notifications.js # Sistema de notificaciones
+│   │   │   ├── validator.js    # Validación de formularios
+│   │   │   ├── search.js       # Motor de búsqueda
+│   │   │   ├── loading.js      # Componentes de carga
+│   │   │   └── backup.js       # Sistema de respaldo
+│   │   ├── components/         # Componentes reutilizables
+│   │   │   └── backup-config.js # Configuración de respaldo
+│   │   ├── storage.js          # Gestión de almacenamiento
+│   │   └── sw.js              # Service Worker
+│   └── public/                 # Archivos públicos
+│       └── assets/            # Recursos estáticos
+├── dist/                      # Archivos de distribución
+├── vite.config.js            # Configuración de Vite
+├── package.json              # Dependencias del proyecto
+└── README.md                # Este archivo
+```
+
+## 🚀 Instalación y Desarrollo
+
+### Requisitos Previos
+- Node.js 16+
+- npm 7+
+
+### Instalación
 
 1. Clona el repositorio:
-
 ```bash
 git clone https://github.com/tu-usuario/work-tracker-pro-2.git
 cd work-tracker-pro-2
 ```
 
 2. Instala las dependencias:
-
 ```bash
 npm install
 ```

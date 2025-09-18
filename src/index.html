@@ -19,7 +19,7 @@
     <!-- Custom CSS -->
     <link href="./css/style.css" rel="stylesheet" />
     <!-- PWA manifest y otros metadatos -->
-    <link rel="manifest" href="./manifest.json" />
+    <link rel="manifest" href="./assets/manifest.json" />
     <meta name="theme-color" content="#0d6efd" />
     <link rel="apple-touch-icon" href="./assets/icons/icon-192x192.png" />
     <!-- PWA Meta Tags -->
@@ -39,23 +39,6 @@
       href="./assets/icons/icon-192x192.png"
     />
     <!-- Scripts -->
-    <script>
-      // Registro del Service Worker
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", async () => {
-          try {
-            const registration = await navigator.serviceWorker.register(
-              "./sw.js"
-            );
-            console.log(
-              "Service Worker registrado con éxito:",
-              registration.scope
-            );
-          } catch (error) {
-            console.error("Error al registrar el Service Worker:", error);
-          }
-        });
-      }
 
       // Mostrar prompt de instalación
       let deferredPrompt;
@@ -492,9 +475,7 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async () => {
           try {
-            const registration = await navigator.serviceWorker.register(
-              "./sw.js"
-            );
+            const registration = await navigator.serviceWorker.register("/sw.js");
             console.log(
               "Service Worker registrado con éxito:",
               registration.scope

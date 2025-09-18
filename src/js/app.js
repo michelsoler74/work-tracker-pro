@@ -1,49 +1,31 @@
-// Registro del Service Worker
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      // Solicitar permisos para el micrófono
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("Permiso de micrófono concedido");
-      }
+/**
+ * @fileoverview Work Tracker Pro - Aplicación principal para gestión de trabajos y trabajadores
+ * @author Work Tracker Pro Team
+ * @version 2.0.0
+ */
 
-      // Registrar el Service Worker con la ruta correcta
-      const swPath = window.location.pathname.endsWith("/")
-        ? "sw.js"
-        : "/sw.js";
-
-      const registration = await navigator.serviceWorker.register(swPath);
-      console.log("Service Worker registrado con éxito:", registration.scope);
-    } catch (error) {
-      console.error("Error al configurar la aplicación:", error);
-      if (error.name === "NotAllowedError") {
-        showNotification(
-          "Se requiere permiso para usar el micrófono",
-          "warning"
-        );
-      }
-    }
-  });
-}
-
-// Aplicación principal
+// Importaciones
 import JobService from "./services/job.service.js";
 import WorkerService from "./services/worker.service.js";
-import UI from "./ui.js";
-import { initVoiceRecognition } from "./voice.js";
 import { showNotification } from "./utils/notifications.js";
 import { generateId } from "./utils/helpers.js";
 import { searchService } from "./utils/search.js";
 import { FormValidator, jobValidator, workerValidator } from "./utils/validator.js";
 import { loadingManager, SkeletonLoader, ConfirmationModal, FeedbackUtils } from "./utils/loading.js";
 
+/**
+ * Clase principal de la aplicación Work Tracker Pro
+ * Gestiona trabajos, trabajadores y la interfaz de usuario
+ */
 class WorkTrackerApp {
+  /**
+   * Constructor de la aplicación
+   * Inicializa servicios y estado
+   */
   constructor() {
     // Inicializar servicios
     this.jobService = new JobService();
     this.workerService = new WorkerService();
-    this.ui = new UI();
 
     // Estado inicial
     this.state = {
@@ -375,8 +357,10 @@ class WorkTrackerApp {
       this.state.fotosSeleccionadas = [];
 
       // Actualizar UI
-      this.renderJobs();
-      this.updateSummary();
+      await Promise.all([
+        this.renderJobs(),
+        this.updateSummary()
+      ]);
     } catch (error) {
       console.error("Error al guardar:", error);
       showNotification(
@@ -390,11 +374,23 @@ class WorkTrackerApp {
     }
   }
 
-  renderJobs() {
-    const container = document.querySelector("#jobs-container");
+  async renderJobs() {
+    const container = document.querySelector("#jobList");
     if (!container) return;
 
+    // Asegurar que el servicio esté inicializado
+    if (!this.jobService.initialized) {
+      await this.jobService.init();
+    }
+
     const jobs = this.jobService.getAllJobs();
+
+    // Validar que jobs sea un array
+    if (!Array.isArray(jobs)) {
+      console.warn('Jobs no es un array en renderJobs:', jobs);
+      container.innerHTML = '<p class="text-muted">No se pudieron cargar los trabajos</p>';
+      return;
+    }
     container.innerHTML = jobs
       .map(
         (job) => `
@@ -443,7 +439,7 @@ class WorkTrackerApp {
     return statusClasses[status] || "secondary";
   }
 
-  updateWorkerSelect() {
+  async updateWorkerSelect() {
     const select = document.querySelector("#trabajador");
     if (!select) return;
 
@@ -452,6 +448,11 @@ class WorkTrackerApp {
       console.warn('WorkerService no está inicializado correctamente');
       select.innerHTML = '<option value="">Seleccionar trabajador...</option>';
       return;
+    }
+
+    // Asegurar que el servicio esté completamente inicializado
+    if (!this.workerService.initialized) {
+      await this.workerService.init();
     }
 
     const workers = this.workerService.getAllWorkers();
@@ -475,12 +476,12 @@ class WorkTrackerApp {
     `;
   }
 
-  updateSummary() {
+  async updateSummary() {
     const summarySection = document.querySelector("#summarySection");
     if (!summarySection) return;
 
-    const jobStats = this.jobService.getJobStats();
-    const workerStats = this.workerService.getWorkerStats();
+    const jobStats = await this.jobService.getJobStats();
+    const workerStats = await this.workerService.getWorkerStats();
 
     summarySection.innerHTML = `
       <div class="row">
@@ -641,9 +642,11 @@ class WorkTrackerApp {
       }
 
       // Actualizar UI
-      this.renderWorkers();
-      this.updateWorkerSelect();
-      this.updateSummary();
+      await Promise.all([
+        this.renderWorkers(),
+        this.updateWorkerSelect(),
+        this.updateSummary()
+      ]);
     } catch (error) {
       console.error("Error al guardar trabajador:", error);
       showNotification(
@@ -657,11 +660,23 @@ class WorkTrackerApp {
     }
   }
 
-  renderWorkers() {
-    const container = document.querySelector("#workers-container");
+  async renderWorkers() {
+    const container = document.querySelector("#workerList");
     if (!container) return;
 
+    // Asegurar que el servicio esté inicializado
+    if (!this.workerService.initialized) {
+      await this.workerService.init();
+    }
+
     const workers = this.workerService.getAllWorkers();
+
+    // Validar que workers sea un array
+    if (!Array.isArray(workers)) {
+      console.warn('Workers no es un array en renderWorkers:', workers);
+      container.innerHTML = '<p class="text-muted">No se pudieron cargar los trabajadores</p>';
+      return;
+    }
     container.innerHTML = workers
       .map(
         (worker) => `
@@ -949,7 +964,19 @@ class WorkTrackerApp {
   // Manejar errores de duplicados
   async checkForDuplicates(type, data) {
     if (type === 'job') {
+      // Asegurar que el servicio esté inicializado
+      if (!this.jobService.initialized) {
+        await this.jobService.init();
+      }
+
       const jobs = this.jobService.getAllJobs();
+
+      // Validar que jobs sea un array
+      if (!Array.isArray(jobs)) {
+        console.warn('Jobs no es un array en checkForDuplicates:', jobs);
+        return; // No podemos verificar duplicados si no tenemos un array válido
+      }
+
       const duplicateTitle = jobs.find(job =>
         job.title.toLowerCase() === data.title.toLowerCase() &&
         job.id !== data.id
@@ -959,7 +986,18 @@ class WorkTrackerApp {
         throw new Error('Ya existe un trabajo con este título');
       }
     } else if (type === 'worker') {
+      // Asegurar que el servicio esté inicializado
+      if (!this.workerService.initialized) {
+        await this.workerService.init();
+      }
+
       const workers = this.workerService.getAllWorkers();
+
+      // Validar que workers sea un array
+      if (!Array.isArray(workers)) {
+        console.warn('Workers no es un array en checkForDuplicates:', workers);
+        return; // No podemos verificar duplicados si no tenemos un array válido
+      }
 
       // Verificar nombre duplicado
       const duplicateName = workers.find(worker =>
@@ -1039,33 +1077,6 @@ class WorkTrackerApp {
     skeletons.forEach(skeleton => container.appendChild(skeleton));
   }
 
-  // Mejorar el método renderJobs con skeleton loading
-  async renderJobs() {
-    const container = document.querySelector("#jobList");
-    if (!container) return;
-
-    // Si no hay datos filtrados todavía, mostrar skeleton
-    if (this.state.filteredJobs.length === 0 && this.jobService.getAllJobs().length === 0) {
-      this.showSkeletonLoaders(container, 'job', 2);
-      return;
-    }
-
-    this.renderFilteredJobs();
-  }
-
-  // Mejorar el método renderWorkers con skeleton loading
-  async renderWorkers() {
-    const container = document.querySelector("#workerList");
-    if (!container) return;
-
-    // Si no hay datos filtrados todavía, mostrar skeleton
-    if (this.state.filteredWorkers.length === 0 && this.workerService.getAllWorkers().length === 0) {
-      this.showSkeletonLoaders(container, 'worker', 2);
-      return;
-    }
-
-    this.renderFilteredWorkers();
-  }
 }
 
 // Inicializar la aplicación cuando el DOM esté listo
@@ -1077,16 +1088,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     console.log("Aplicación inicializada correctamente");
 
-    // Configurar event listeners para los botones de micrófono
-    const voiceButtons = document.querySelectorAll(".btn-voice");
-    voiceButtons.forEach((button) => {
-      const inputElement = button.previousElementSibling;
-      if (inputElement) {
-        button.addEventListener("click", () =>
-          initVoiceRecognition(inputElement)
-        );
-      }
-    });
+    // Configurar funcionalidades adicionales
+    // TODO: Implementar reconocimiento de voz si se requiere
   } catch (error) {
     console.error("Error al inicializar la aplicación:", error);
     const container = document.querySelector("#notification-container");

@@ -85,7 +85,23 @@ class JobService {
     return this.jobs.filter((job) => job.workerId === workerId);
   }
 
-  getJobStats() {
+  async getJobStats() {
+    // Asegurar que el servicio esté completamente inicializado
+    if (!this.initialized) {
+      await this.init();
+    }
+
+    // Validar que jobs sea un array
+    if (!Array.isArray(this.jobs)) {
+      console.warn('Jobs no es un array:', this.jobs);
+      return {
+        totalJobs: 0,
+        completedJobs: 0,
+        pendingJobs: 0,
+        inProgressJobs: 0
+      };
+    }
+
     const totalJobs = this.jobs.length;
     const completedJobs = this.jobs.filter(
       (j) => j.status === "Completado"
